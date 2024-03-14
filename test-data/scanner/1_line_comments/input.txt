@@ -1,0 +1,7 @@
+// this is a comment
++-*/==
+
+// a comment after an empty line
+=<><=>=
+
+"this is a string literal"

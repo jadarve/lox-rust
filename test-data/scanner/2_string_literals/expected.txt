@@ -1,0 +1,2 @@
+"first string literal"
+"second string literal"
