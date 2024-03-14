@@ -1,0 +1,16 @@
+kw:and
+kw:class
+kw:else
+kw:false
+kw:fun
+kw:for
+kw:if
+kw:nil
+kw:or
+kw:print
+kw:return
+kw:super
+kw:this
+kw:true
+kw:var
+kw:while

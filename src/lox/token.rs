@@ -20,12 +20,28 @@ pub enum Token {
 
     ///////////////////////////////////////////////////////////////////////////
     // keywords
+    And,
+    Class,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
     Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
 
     ///////////////////////////////////////////////////////////////////////////
     /// Literals
     StringLiteral(String),
     NumberLiteral(f64),
+    Identifier(String),
 
     // end of file
     Eof,
@@ -39,7 +55,6 @@ impl Display for Token {
             Token::Minus => write!(f, "-"),
             Token::Times => write!(f, "*"),
             Token::Divide => write!(f, "/"),
-            Token::Print => write!(f, "print"),
             Token::Assign => write!(f, "="),
             Token::Equal => write!(f, "=="),
             Token::Eof => write!(f, ""),
@@ -47,8 +62,29 @@ impl Display for Token {
             Token::Greater => write!(f, ">"),
             Token::LessEqual => write!(f, "<="),
             Token::GreaterEqual => write!(f, ">="),
+
+            // literals
             Token::StringLiteral(s) => write!(f, "\"{}\"", s),
             Token::NumberLiteral(n) => write!(f, "{}", n),
+            Token::Identifier(s) => write!(f, "{}", s),
+
+            // keywords
+            Token::And => write!(f, "and"),
+            Token::Class => write!(f, "class"),
+            Token::Else => write!(f, "else"),
+            Token::False => write!(f, "false"),
+            Token::Fun => write!(f, "fun"),
+            Token::For => write!(f, "for"),
+            Token::If => write!(f, "if"),
+            Token::Nil => write!(f, "nil"),
+            Token::Or => write!(f, "or"),
+            Token::Print => write!(f, "print"),
+            Token::Return => write!(f, "return"),
+            Token::Super => write!(f, "super"),
+            Token::This => write!(f, "this"),
+            Token::True => write!(f, "true"),
+            Token::Var => write!(f, "var"),
+            Token::While => write!(f, "while"),
         }
     }
 }
@@ -89,13 +125,31 @@ impl TryFrom<&str> for Token {
             "-" => Ok(Token::Minus),
             "*" => Ok(Token::Times),
             "/" => Ok(Token::Divide),
-            "print" => Ok(Token::Print),
             "=" => Ok(Token::Assign),
             "==" => Ok(Token::Equal),
             "<" => Ok(Token::Less),
             ">" => Ok(Token::Greater),
             "<=" => Ok(Token::LessEqual),
             ">=" => Ok(Token::GreaterEqual),
+            "kw:and" => Ok(Token::And),
+            "kw:class" => Ok(Token::Class),
+            "kw:else" => Ok(Token::Else),
+            "kw:false" => Ok(Token::False),
+            "kw:fun" => Ok(Token::Fun),
+            "kw:for" => Ok(Token::For),
+            "kw:if" => Ok(Token::If),
+            "kw:nil" => Ok(Token::Nil),
+            "kw:or" => Ok(Token::Or),
+            "kw:print" => Ok(Token::Print),
+            "kw:return" => Ok(Token::Return),
+            "kw:super" => Ok(Token::Super),
+            "kw:this" => Ok(Token::This),
+            "kw:true" => Ok(Token::True),
+            "kw:var" => Ok(Token::Var),
+            "kw:while" => Ok(Token::While),
+            identifier if identifier.chars().all(char::is_alphanumeric) => {
+                Ok(Token::Identifier(identifier.to_string()))
+            }
             _ => Err(format!("Unknown token: len: {} : {}", value.len(), value)),
         }
     }

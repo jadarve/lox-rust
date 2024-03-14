@@ -78,6 +78,9 @@ impl Scanner {
             digit if digit.is_ascii_digit() => {
                 Scanner::match_number_literal(digit, char_iterator, tokens, scan_info);
             }
+            alpha if alpha.is_ascii_alphabetic() => {
+                Scanner::match_identifier(alpha, char_iterator, tokens, scan_info);
+            }
             other => {
                 // match identifier, then convert to keyword, identifier or literal
             }
@@ -186,7 +189,7 @@ impl Scanner {
         tokens: &mut Vec<Token>,
         _scan_info: &mut ScanInfo,
     ) {
-        let mut str_buffer = String::new();
+        let mut str_buffer = String::with_capacity(128);
         // consume characters until the end of the string is reached, or no more chars are available
         while let Some(c) = char_iterator.nth(0) {
             match c {
@@ -211,7 +214,8 @@ impl Scanner {
         tokens: &mut Vec<Token>,
         _scan_info: &mut ScanInfo,
     ) {
-        let mut number_buffer = String::from(first);
+        let mut number_buffer = String::with_capacity(32);
+        number_buffer.push(first);
 
         let mut decimal_point_scanned = false;
 
@@ -252,6 +256,50 @@ impl Scanner {
             Ok(n) => tokens.push(Token::NumberLiteral(n)),
             Err(_e) => {
                 // TODO: return error
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn match_identifier(
+        first: char,
+        char_iterator: &mut std::str::Chars,
+        tokens: &mut Vec<Token>,
+        _scan_info: &mut ScanInfo,
+    ) {
+        let mut identifier_buffer = String::with_capacity(64);
+        identifier_buffer.push(first);
+
+        // consume characters until the end of the identifier is reached, or no more chars are available
+        while let Some(c) = char_iterator.nth(0) {
+            match c {
+                alpha_num if alpha_num.is_ascii_alphanumeric() => {
+                    identifier_buffer.push(c);
+                }
+                other => {
+                    match identifier_buffer.as_str() {
+                        "and" => tokens.push(Token::And),
+                        "class" => tokens.push(Token::Class),
+                        "else" => tokens.push(Token::Else),
+                        "false" => tokens.push(Token::False),
+                        "fun" => tokens.push(Token::Fun),
+                        "for" => tokens.push(Token::For),
+                        "if" => tokens.push(Token::If),
+                        "nil" => tokens.push(Token::Nil),
+                        "or" => tokens.push(Token::Or),
+                        "print" => tokens.push(Token::Print),
+                        "return" => tokens.push(Token::Return),
+                        "super" => tokens.push(Token::Super),
+                        "this" => tokens.push(Token::This),
+                        "true" => tokens.push(Token::True),
+                        "var" => tokens.push(Token::Var),
+                        "while" => tokens.push(Token::While),
+                        other => tokens.push(Token::Identifier(other.to_string())),
+                    }
+
+                    Scanner::match_root(other, char_iterator, tokens, _scan_info);
+                    return;
+                }
             }
         }
     }
