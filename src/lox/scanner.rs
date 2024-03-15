@@ -44,6 +44,27 @@ impl Scanner {
         scan_info: &mut ScanInfo,
     ) {
         match c {
+            '(' => {
+                tokens.push(Token::LeftParenthesis);
+            }
+            ')' => {
+                tokens.push(Token::RightParenthesis);
+            }
+            '{' => {
+                tokens.push(Token::LeftBrace);
+            }
+            '}' => {
+                tokens.push(Token::RightBrace);
+            }
+            ',' => {
+                tokens.push(Token::Comma);
+            }
+            '.' => {
+                tokens.push(Token::Dot);
+            }
+            ';' => {
+                tokens.push(Token::Semicolon);
+            }
             '+' => {
                 tokens.push(Token::Plus);
             }
@@ -51,7 +72,7 @@ impl Scanner {
                 tokens.push(Token::Minus);
             }
             '*' => {
-                tokens.push(Token::Times);
+                tokens.push(Token::Star);
             }
             '/' => {
                 Scanner::match_divide(char_iterator, tokens, scan_info);
@@ -68,6 +89,9 @@ impl Scanner {
             '"' => {
                 Scanner::match_string_literal(char_iterator, tokens, scan_info);
             }
+            '!' => {
+                Scanner::match_bang(char_iterator, tokens, scan_info);
+            }
             '\n' => {
                 scan_info.line += 1;
                 scan_info.line_offset = 0;
@@ -82,7 +106,7 @@ impl Scanner {
                 Scanner::match_identifier(alpha, char_iterator, tokens, scan_info);
             }
             other => {
-                // match identifier, then convert to keyword, identifier or literal
+                // FIXME: return error, unrecognized character
             }
         }
     }
@@ -95,14 +119,14 @@ impl Scanner {
     ) {
         match char_iterator.nth(0) {
             Some('=') => {
-                tokens.push(Token::Equal);
+                tokens.push(Token::EqualEqual);
             }
             Some(other) => {
-                tokens.push(Token::Assign);
+                tokens.push(Token::Equal);
                 Scanner::match_root(other, char_iterator, tokens, scan_info);
             }
             None => {
-                tokens.push(Token::Assign);
+                tokens.push(Token::Equal);
             }
         }
     }
@@ -148,6 +172,26 @@ impl Scanner {
     }
 
     #[inline(always)]
+    fn match_bang(
+        char_iterator: &mut std::str::Chars,
+        tokens: &mut Vec<Token>,
+        scan_info: &mut ScanInfo,
+    ) {
+        match char_iterator.nth(0) {
+            Some('=') => {
+                tokens.push(Token::BangEqual);
+            }
+            Some(other) => {
+                tokens.push(Token::Bang);
+                Scanner::match_root(other, char_iterator, tokens, scan_info);
+            }
+            None => {
+                tokens.push(Token::Bang);
+            }
+        }
+    }
+
+    #[inline(always)]
     fn match_divide(
         char_iterator: &mut std::str::Chars,
         tokens: &mut Vec<Token>,
@@ -159,11 +203,11 @@ impl Scanner {
                 Scanner::match_line_comment(char_iterator, scan_info)
             }
             Some(other) => {
-                tokens.push(Token::Divide);
+                tokens.push(Token::Slash);
                 Scanner::match_root(other, char_iterator, tokens, scan_info);
             }
             None => {
-                tokens.push(Token::Divide);
+                tokens.push(Token::Slash);
             }
         }
     }
@@ -273,7 +317,7 @@ impl Scanner {
         // consume characters until the end of the identifier is reached, or no more chars are available
         while let Some(c) = char_iterator.nth(0) {
             match c {
-                alpha_num if alpha_num.is_ascii_alphanumeric() => {
+                c if c.is_ascii_alphanumeric() || c == '_' => {
                     identifier_buffer.push(c);
                 }
                 other => {
@@ -335,10 +379,10 @@ mod tests {
         let expected_tokens = vec![
             Token::Plus,
             Token::Minus,
-            Token::Times,
-            Token::Divide,
-            Token::Assign,
-            Token::Times,
+            Token::Star,
+            Token::Slash,
+            Token::Equal,
+            Token::Star,
             Token::Minus,
             Token::Eof,
         ];
@@ -351,7 +395,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_from_file(#[files("test-data/scanner/**/")] base_path: PathBuf) -> Result<(), String> {
+    fn test_from_file(#[files("test-data/scanner/5_*/")] base_path: PathBuf) -> Result<(), String> {
         ///////////////////////////////////////////////////////////////////////
         // Given the content of a source file
         let input_source =

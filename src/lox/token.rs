@@ -4,19 +4,28 @@ use std::fmt::Display;
 pub enum Token {
     ///////////////////////////////////////////////////////////////////////////
     // single-character tokens
+    LeftParenthesis,
+    RightParenthesis,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Dot,
+    Semicolon,
     Plus,
     Minus,
-    Times, // *
-    Divide,
-    Assign,  // =
+    Star,    // *
+    Slash,   // /
+    Equal,   // =
     Less,    // <
     Greater, // >
+    Bang,    // !
 
     ///////////////////////////////////////////////////////////////////////////
     // two-character tokens
-    Equal,        // ==
+    EqualEqual,   // ==
     LessEqual,    // <=
     GreaterEqual, // >=
+    BangEqual,    // !=
 
     ///////////////////////////////////////////////////////////////////////////
     // keywords
@@ -51,15 +60,24 @@ impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // TODO: should use the same symbols as in the scanner
+            Token::LeftParenthesis => write!(f, "("),
+            Token::RightParenthesis => write!(f, ")"),
+            Token::LeftBrace => write!(f, "{{"),
+            Token::RightBrace => write!(f, "}}"),
+            Token::Comma => write!(f, ","),
+            Token::Dot => write!(f, "."),
+            Token::Semicolon => write!(f, ";"),
+            Token::Bang => write!(f, "!"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
-            Token::Times => write!(f, "*"),
-            Token::Divide => write!(f, "/"),
-            Token::Assign => write!(f, "="),
-            Token::Equal => write!(f, "=="),
-            Token::Eof => write!(f, ""),
+            Token::Star => write!(f, "*"),
+            Token::Slash => write!(f, "/"),
+            Token::Equal => write!(f, "="),
             Token::Less => write!(f, "<"),
             Token::Greater => write!(f, ">"),
+
+            Token::EqualEqual => write!(f, "=="),
+            Token::BangEqual => write!(f, "!="),
             Token::LessEqual => write!(f, "<="),
             Token::GreaterEqual => write!(f, ">="),
 
@@ -85,6 +103,8 @@ impl Display for Token {
             Token::True => write!(f, "true"),
             Token::Var => write!(f, "var"),
             Token::While => write!(f, "while"),
+
+            Token::Eof => write!(f, ""),
         }
     }
 }
@@ -123,14 +143,23 @@ impl TryFrom<&str> for Token {
         match value {
             "+" => Ok(Token::Plus),
             "-" => Ok(Token::Minus),
-            "*" => Ok(Token::Times),
-            "/" => Ok(Token::Divide),
-            "=" => Ok(Token::Assign),
-            "==" => Ok(Token::Equal),
+            "*" => Ok(Token::Star),
+            "/" => Ok(Token::Slash),
+            "=" => Ok(Token::Equal),
+            "==" => Ok(Token::EqualEqual),
             "<" => Ok(Token::Less),
             ">" => Ok(Token::Greater),
             "<=" => Ok(Token::LessEqual),
             ">=" => Ok(Token::GreaterEqual),
+            "!" => Ok(Token::Bang),
+            "!=" => Ok(Token::BangEqual),
+            "(" => Ok(Token::LeftParenthesis),
+            ")" => Ok(Token::RightParenthesis),
+            "{" => Ok(Token::LeftBrace),
+            "}" => Ok(Token::RightBrace),
+            "," => Ok(Token::Comma),
+            "." => Ok(Token::Dot),
+            ";" => Ok(Token::Semicolon),
             "kw:and" => Ok(Token::And),
             "kw:class" => Ok(Token::Class),
             "kw:else" => Ok(Token::Else),
@@ -147,7 +176,11 @@ impl TryFrom<&str> for Token {
             "kw:true" => Ok(Token::True),
             "kw:var" => Ok(Token::Var),
             "kw:while" => Ok(Token::While),
-            identifier if identifier.chars().all(char::is_alphanumeric) => {
+            identifier
+                if identifier
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_') =>
+            {
                 Ok(Token::Identifier(identifier.to_string()))
             }
             _ => Err(format!("Unknown token: len: {} : {}", value.len(), value)),

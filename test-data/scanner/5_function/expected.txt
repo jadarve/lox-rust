@@ -1,0 +1,9 @@
+kw:fun
+print_hello
+(
+)
+{
+kw:print
+"hello, world!"
+;
+}
