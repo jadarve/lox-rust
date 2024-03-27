@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::{BufReader, Read};
-use utf8_chars::BufReadCharsExt;
 
 use lox_rust::lox;
 

@@ -395,7 +395,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_from_file(#[files("test-data/scanner/5_*/")] base_path: PathBuf) -> Result<(), String> {
+    fn test_from_file(#[files("test-data/scanner/**/")] base_path: PathBuf) -> Result<(), String> {
         ///////////////////////////////////////////////////////////////////////
         // Given the content of a source file
         let input_source =
