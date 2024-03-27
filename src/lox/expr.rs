@@ -1,90 +1,3 @@
-use super::Token;
-
-///////////////////////////////////////////////////////////////////////////////
-// Using enums
-
-// pub enum Statement {
-//     Expression(Expression),
-// }
-
-// pub enum Expression {
-//     Equality(Equality),
-// }
-
-// pub enum Equality {
-//     Comparison(Comparison),
-//     Equality(Comparison, Token, Box<Comparison>),
-// }
-
-// pub enum Comparison {
-//     Term(Term),
-//     Comparison(Term, Token, Box<Comparison>),
-// }
-
-// pub enum Term {
-//     Factor(Factor),
-//     Term(Factor, Token, Box<Term>),
-// }
-// pub enum Factor {
-//     Unary(Unary),
-//     Factor(Unary, Token, Box<Factor>),
-// }
-
-// pub enum Unary {
-//     Primary(Primary),
-//     Unary(Token, Box<Unary>),
-// }
-
-// pub enum Primary {
-//     Literal(Token),
-//     Grouping(Box<Expression>),
-// }
-
-// TODO: Visitor trait
-// TODO: Separate Token according to their usage
-
-///////////////////////////////////////////////////////////////////////////////
-// Using structs
-
-// pub struct Declaration {
-
-// }
-
-// pub trait ExprVisitor {
-//     fn visit_addition(&self, left: &Box<dyn Expr>, right: &Box<dyn Expr>) -> f64;
-//     fn visit_substraction(&self, expr: &BinaryExpr) -> f64;
-// }
-
-// pub trait Expr {
-//     fn accept(&self, visitor: &dyn ExprVisitor) -> f64;
-// }
-
-// pub enum BinaryExpr {
-//     Addition(Box<dyn Expr>, Box<dyn Expr>),
-//     Subtraction(Box<dyn Expr>, Box<dyn Expr>),
-//     Multiplication(Box<dyn Expr>, Box<dyn Expr>),
-//     Division(Box<dyn Expr>, Box<dyn Expr>),
-//     // ...
-// }
-
-// impl Expr for BinaryExpr {
-//     fn accept(&self, visitor: &dyn ExprVisitor) -> f64 {
-//         match self {
-//             BinaryExpr::Addition(left, right) => visitor.visit_addition(left, right),
-//             _ => {
-//                 todo!()
-//             }
-//         };
-//         // match self {
-//         //     BinaryExpr::Addition(left, right) => visitor.visit_binary_expr(self),
-//         //     BinaryExpr::Subtraction(left, right) => visitor.visit_binary_expr(self),
-//         //     BinaryExpr::Multiplication(left, right) => visitor.visit_binary_expr(self),
-//         //     BinaryExpr::Division(left, right) => visitor.visit_binary_expr(self),
-//         // }
-//         todo!()
-//     }
-// }
-
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Expr {
     // Binary
@@ -110,6 +23,56 @@ pub enum Expr {
     True,
     Nil,
     Identifier(String),
+}
+
+impl Expr {
+    pub fn accept<T>(&self, visitor: &dyn ExprVisitor<T>) -> T {
+        match self {
+            Expr::BinaryEqual(left, right) => visitor.visit_binary_equal(left, right),
+            Expr::BinaryNotEqual(left, right) => visitor.visit_binary_not_equal(left, right),
+            Expr::BinaryLess(left, right) => visitor.visit_binary_less(left, right),
+            Expr::BinaryLessEqual(left, right) => visitor.visit_binary_less_equal(left, right),
+            Expr::BinaryGreater(left, right) => visitor.visit_binary_greater(left, right),
+            Expr::BinaryGreaterEqual(left, right) => {
+                visitor.visit_binary_greater_equal(left, right)
+            }
+            Expr::BinaryAdd(left, right) => visitor.visit_binary_add(left, right),
+            Expr::BinarySub(left, right) => visitor.visit_binary_sub(left, right),
+            Expr::BinaryMul(left, right) => visitor.visit_binary_mul(left, right),
+            Expr::BinaryDiv(left, right) => visitor.visit_binary_div(left, right),
+            Expr::UnaryBang(expr) => visitor.visit_unary_bang(expr),
+            Expr::UnaryMinus(expr) => visitor.visit_unary_minus(expr),
+            Expr::LiteralString(value) => visitor.visit_literal_string(value),
+            Expr::LiteralNumber(value) => visitor.visit_literal_number(value),
+            Expr::False => visitor.visit_false(),
+            Expr::True => visitor.visit_true(),
+            Expr::Nil => visitor.visit_nil(),
+            Expr::Identifier(value) => visitor.visit_identifier(value),
+        }
+    }
+}
+
+pub trait ExprVisitor<T> {
+    fn visit_binary_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_not_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_less(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_less_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_greater(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_greater_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_add(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_sub(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_mul(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_div(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+
+    fn visit_unary_bang(&self, expr: &Box<Expr>) -> T;
+    fn visit_unary_minus(&self, expr: &Box<Expr>) -> T;
+
+    fn visit_literal_string(&self, value: &String) -> T;
+    fn visit_literal_number(&self, value: &f64) -> T;
+    fn visit_false(&self) -> T;
+    fn visit_true(&self) -> T;
+    fn visit_nil(&self) -> T;
+    fn visit_identifier(&self, value: &String) -> T;
 }
 
 #[cfg(test)]

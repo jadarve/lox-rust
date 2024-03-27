@@ -1,4 +1,4 @@
-use super::{Expr, Token};
+use super::{Expr, ExprVisitor, Token};
 
 pub struct Statement {}
 
@@ -26,7 +26,6 @@ impl Parser {
         let mut statements = Vec::new();
 
         while !self.is_at_end() {
-            // let current_token = self.advance();
             let expr = self.parse_expression()?;
             statements.push(expr);
         }
@@ -35,24 +34,6 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        // pub enum Equality {
-        //     Comparison(Comparison),
-        //     Equality(Comparison, Token, Box<Comparison>),
-        // }
-
-        // pub enum Comparison {
-        //     Term(Term),
-        //     Comparison(Term, Token, Box<Comparison>),
-        // }
-
-        // pub enum Term {
-        //     Factor(Factor),
-        //     Term(Factor, Token, Box<Term>),
-        // }
-        // pub enum Factor {
-        //     Unary(Unary),
-        //     Factor(Unary, Token, Box<Factor>),
-        // }
         self.parse_expression_equality()
     }
 
@@ -171,8 +152,6 @@ impl Parser {
     }
 
     fn parse_expression_primary(&mut self) -> Result<Expr, ParseError> {
-        // self.advance(); // FIXME: check if here I need to advance
-
         match self.previous() {
             Token::NumberLiteral(n) => {
                 return Ok(Expr::LiteralNumber(*n));
@@ -242,9 +221,86 @@ impl Parser {
     }
 }
 
+struct AstPrinter {}
+
+impl ExprVisitor<String> for AstPrinter {
+    fn visit_binary_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} == {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_not_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} != {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_less(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} < {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_less_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} <= {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_greater(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} > {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_greater_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} >= {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_add(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} + {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_sub(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} - {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_mul(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} * {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_div(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} / {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_unary_bang(&self, expr: &Box<Expr>) -> String {
+        format!("{{!{}}}", expr.accept(self))
+    }
+
+    fn visit_unary_minus(&self, expr: &Box<Expr>) -> String {
+        format!("{{-{}}}", expr.accept(self))
+    }
+
+    fn visit_literal_string(&self, value: &String) -> String {
+        format!("\"{}\"", value)
+    }
+
+    fn visit_literal_number(&self, value: &f64) -> String {
+        value.to_string()
+    }
+
+    fn visit_false(&self) -> String {
+        "false".to_string()
+    }
+
+    fn visit_true(&self) -> String {
+        "true".to_string()
+    }
+
+    fn visit_nil(&self) -> String {
+        "nil".to_string()
+    }
+
+    fn visit_identifier(&self, value: &String) -> String {
+        value.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::lox::Token;
+    use crate::lox::{scanner, Token};
+    use rstest::*;
 
     use super::*;
 
@@ -356,6 +412,45 @@ mod tests {
                 )),
             )
         );
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case("nil", "nil")]
+    #[case("\"my literal\"", "\"my literal\"")]
+    #[case("1.0 + 2.0 / 3.0", "{1 + {2 / 3}}")]
+    fn test_ast_printer(
+        #[case] source: String,
+        #[case] expected_ast: String,
+    ) -> Result<(), String> {
+        ///////////////////////////////////////////////////////////////////////
+        // Given the tokens produced by the scanner
+        let mut scanner = scanner::Scanner::new(source);
+        let tokens = scanner
+            .scan_tokens()?
+            .into_iter()
+            .filter(|t| t != &Token::Eof)
+            .collect();
+
+        println!("{:?}", tokens);
+
+        ///////////////////////////////////////////////////////////////////////
+        // When parsing the tokens
+        // FIXME: parser does no support EOF token
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse().map_err(|e| e.to_string())?;
+
+        ///////////////////////////////////////////////////////////////////////
+        // Then the result should be a single expression
+        assert_eq!(statements.len(), 1);
+
+        // and when printing the AST
+        let ast_printer = AstPrinter {};
+        let ast_string = statements[0].accept(&ast_printer);
+
+        // the resulting string should be equal to the expected
+        assert_eq!(ast_string, expected_ast);
 
         Ok(())
     }

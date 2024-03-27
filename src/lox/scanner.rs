@@ -346,6 +346,28 @@ impl Scanner {
                 }
             }
         }
+
+        // FIXME: this is ugly, repeated code
+        // in case of EOF reached during the character scanning
+        match identifier_buffer.as_str() {
+            "and" => tokens.push(Token::And),
+            "class" => tokens.push(Token::Class),
+            "else" => tokens.push(Token::Else),
+            "false" => tokens.push(Token::False),
+            "fun" => tokens.push(Token::Fun),
+            "for" => tokens.push(Token::For),
+            "if" => tokens.push(Token::If),
+            "nil" => tokens.push(Token::Nil),
+            "or" => tokens.push(Token::Or),
+            "print" => tokens.push(Token::Print),
+            "return" => tokens.push(Token::Return),
+            "super" => tokens.push(Token::Super),
+            "this" => tokens.push(Token::This),
+            "true" => tokens.push(Token::True),
+            "var" => tokens.push(Token::Var),
+            "while" => tokens.push(Token::While),
+            other => tokens.push(Token::Identifier(other.to_string())),
+        }
     }
 }
 
@@ -392,6 +414,63 @@ mod tests {
         for (computed, expected) in zip(&tokens, &expected_tokens) {
             assert_eq!(computed, expected);
         }
+    }
+
+    #[rstest]
+    #[case::left_parenthesis("(", Token::LeftParenthesis)]
+    #[case::right_parenthesis(")", Token::RightParenthesis)]
+    #[case::left_brace("{", Token::LeftBrace)]
+    #[case::right_brace("}", Token::RightBrace)]
+    #[case::comma(",", Token::Comma)]
+    #[case::dot(".", Token::Dot)]
+    #[case::semicolon(";", Token::Semicolon)]
+    #[case::plus("+", Token::Plus)]
+    #[case::minus("-", Token::Minus)]
+    #[case::star("*", Token::Star)]
+    #[case::slash("/", Token::Slash)]
+    #[case::equal("=", Token::Equal)]
+    #[case::less("<", Token::Less)]
+    #[case::greater(">", Token::Greater)]
+    #[case::bang("!", Token::Bang)]
+    #[case::equal_equal("==", Token::EqualEqual)]
+    #[case::less_equal("<=", Token::LessEqual)]
+    #[case::greater_equal(">=", Token::GreaterEqual)]
+    #[case::bang_equal("!=", Token::BangEqual)]
+    #[case::and("and", Token::And)]
+    #[case::class("class", Token::Class)]
+    #[case::kw_else("else", Token::Else)]
+    #[case::kw_false("false", Token::False)]
+    #[case::fun("fun", Token::Fun)]
+    #[case::kw_for("for", Token::For)]
+    #[case::kw_if("if", Token::If)]
+    #[case::nil("nil", Token::Nil)]
+    #[case::or("or", Token::Or)]
+    #[case::print("print", Token::Print)]
+    #[case::kw_return("return", Token::Return)]
+    #[case::super("super", Token::Super)]
+    #[case::this("this", Token::This)]
+    #[case::kw_true("true", Token::True)]
+    #[case::var("var", Token::Var)]
+    #[case::kw_while("while", Token::While)]
+    #[case::string_literal("\"my literal\"", Token::StringLiteral("my literal".to_string()))]
+    #[case::number_literal("0.5", Token::NumberLiteral(0.5))]
+    #[case::identifier("my_identifier", Token::Identifier("my_identifier".to_string()))]
+    fn test_single_token(#[case] source: String, #[case] expected: Token) -> Result<(), String> {
+        ///////////////////////////////////////////////////////////////////////
+        // Given the source string as parameter
+
+        ///////////////////////////////////////////////////////////////////////
+        // When the source is scanned
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan_tokens()?;
+
+        ///////////////////////////////////////////////////////////////////////
+        // Then there should be exactly 2 tokens, the expected token and EOF
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0], expected);
+        assert_eq!(tokens[1], Token::Eof);
+
+        Ok(())
     }
 
     #[rstest]
