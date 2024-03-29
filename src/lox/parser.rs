@@ -1,4 +1,4 @@
-use super::{Expr, ExprVisitor, Token};
+use super::{Expr, ExprVisitor, Stmt, StmtVisitor, Token};
 
 pub struct Statement {}
 
@@ -22,19 +22,96 @@ impl Parser {
         Parser { tokens, current: 0 }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Expr>, ParseError> {
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, ParseError> {
         let mut statements = Vec::new();
 
         while !self.is_at_end() {
-            let expr = self.parse_expression()?;
+            let expr = self.parse_statement()?;
             statements.push(expr);
         }
 
         Ok(statements)
     }
 
+    ///////////////////////////////////////////////////////////////////////////
+    // Statement parsing
+    fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
+        match self.peek() {
+            Token::Print => self.parse_print_statement(),
+            _ => self.parse_expression_statement(),
+        }
+    }
+
+    fn parse_print_statement(&mut self) -> Result<Stmt, ParseError> {
+        self.advance(); // consume the print token
+
+        let expr = self.parse_expression()?;
+
+        if !self.match_token(vec![Token::Semicolon]) {
+            return Err(ParseError {
+                message: "Expected ';' after expression.".to_string(),
+            });
+        }
+
+        Ok(Stmt::Print(Box::new(expr)))
+    }
+
+    fn parse_expression_statement(&mut self) -> Result<Stmt, ParseError> {
+        let expr = self.parse_expression()?;
+
+        if !self.match_token(vec![Token::Semicolon]) {
+            return Err(ParseError {
+                message: "Expected ';' after expression.".to_string(),
+            });
+        }
+
+        Ok(Stmt::Expr(Box::new(expr)))
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Expression parsing
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        self.parse_expression_equality()
+        self.parse_expression_or()
+    }
+
+    fn parse_expression_or(&mut self) -> Result<Expr, ParseError> {
+        let mut left_expr = self.parse_expression_and()?;
+
+        while self.match_token(vec![Token::Or]) {
+            let operator = self.previous().clone();
+            let right_expr = self.parse_expression_and()?;
+
+            left_expr = match operator {
+                Token::Or => Expr::BinaryOr(Box::new(left_expr), Box::new(right_expr)),
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Unexpected token while parsing or: {:?}", operator),
+                    });
+                }
+            };
+        }
+
+        Ok(left_expr)
+    }
+
+    fn parse_expression_and(&mut self) -> Result<Expr, ParseError> {
+        let mut left_expr = self.parse_expression_equality()?;
+
+        while self.match_token(vec![Token::And]) {
+            let operator = self.previous().clone();
+            let right_expr = self.parse_expression_equality()?;
+
+            left_expr = match operator {
+                Token::And => Expr::BinaryAnd(Box::new(left_expr), Box::new(right_expr)),
+                _ => {
+                    return Err(ParseError {
+                        message: format!("Unexpected token while parsing and: {:?}", operator),
+                    });
+                }
+            };
+        }
+
+        Ok(left_expr)
     }
 
     fn parse_expression_equality(&mut self) -> Result<Expr, ParseError> {
@@ -153,39 +230,40 @@ impl Parser {
 
     fn parse_expression_primary(&mut self) -> Result<Expr, ParseError> {
         match self.previous() {
-            Token::NumberLiteral(n) => {
-                return Ok(Expr::LiteralNumber(*n));
-            }
-            Token::StringLiteral(s) => {
-                return Ok(Expr::LiteralString(s.clone()));
-            }
-            Token::Identifier(s) => {
-                return Ok(Expr::Identifier(s.clone()));
-            }
-            Token::False => {
-                return Ok(Expr::False);
-            }
-            Token::True => {
-                return Ok(Expr::True);
-            }
-            Token::Nil => {
-                return Ok(Expr::Nil);
-            }
-            _ => {
-                return Err(ParseError {
-                    message: format!(
-                        "Unexpected token while parsing primary: {:?}",
-                        self.previous()
-                    ),
-                });
-            }
+            Token::NumberLiteral(n) => Ok(Expr::LiteralNumber(*n)),
+            Token::StringLiteral(s) => Ok(Expr::LiteralString(s.clone())),
+            Token::Identifier(s) => Ok(Expr::Identifier(s.clone())),
+            Token::False => Ok(Expr::False),
+            Token::True => Ok(Expr::True),
+            Token::Nil => Ok(Expr::Nil),
+            Token::LeftParenthesis => self.parse_expression_parenthesis(),
+            _ => Err(ParseError {
+                message: format!(
+                    "Unexpected token while parsing primary: {:?}",
+                    self.previous()
+                ),
+            }),
         }
+    }
+
+    fn parse_expression_parenthesis(&mut self) -> Result<Expr, ParseError> {
+        // the left parenthesis has already been consumed
+
+        let expr = self.parse_expression()?;
+
+        if !self.match_token(vec![Token::RightParenthesis]) {
+            return Err(ParseError {
+                message: "Expected ')' after expression.".to_string(),
+            });
+        }
+
+        Ok(expr)
     }
 
     ///////////////////////////////////////////////////////////////////////////
     // Auxiliary methods
     fn is_at_end(&self) -> bool {
-        self.current >= self.tokens.len()
+        self.current >= self.tokens.len() || self.peek() == &Token::Eof
     }
 
     fn peek(&self) -> &Token {
@@ -224,6 +302,14 @@ impl Parser {
 struct AstPrinter {}
 
 impl ExprVisitor<String> for AstPrinter {
+    fn visit_binary_or(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} or {}}}", left.accept(self), right.accept(self))
+    }
+
+    fn visit_binary_and(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+        format!("{{{} and {}}}", left.accept(self), right.accept(self))
+    }
+
     fn visit_binary_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} == {}}}", left.accept(self), right.accept(self))
     }
@@ -297,6 +383,16 @@ impl ExprVisitor<String> for AstPrinter {
     }
 }
 
+impl StmtVisitor<String> for AstPrinter {
+    fn visit_print(&self, expr: &Box<Expr>) -> String {
+        format!("{{print {}}}", expr.accept(self))
+    }
+
+    fn visit_expr(&self, expr: &Box<Expr>) -> String {
+        expr.accept(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::lox::{scanner, Token};
@@ -308,28 +404,7 @@ mod tests {
     fn test_primary() -> Result<(), String> {
         ///////////////////////////////////////////////////////////////////////
         // Given a single literal number token
-        let tokens = vec![Token::NumberLiteral(1.0)];
-
-        let mut parser = Parser::new(tokens);
-
-        ///////////////////////////////////////////////////////////////////////
-        // When parsing the tokens
-        let statements = parser.parse().map_err(|e| e.to_string())?;
-
-        ///////////////////////////////////////////////////////////////////////
-        // Then the result should be a single expression
-        assert_eq!(statements.len(), 1);
-
-        assert_eq!(statements[0], Expr::LiteralNumber(1.0));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_unary() -> Result<(), String> {
-        ///////////////////////////////////////////////////////////////////////
-        // Given a single unary minus token followed by a number literal token
-        let tokens = vec![Token::Minus, Token::NumberLiteral(1.0)];
+        let tokens = vec![Token::NumberLiteral(1.0), Token::Semicolon];
 
         let mut parser = Parser::new(tokens);
 
@@ -343,7 +418,33 @@ mod tests {
 
         assert_eq!(
             statements[0],
-            Expr::UnaryMinus(Box::new(Expr::LiteralNumber(1.0)))
+            Stmt::Expr(Box::new(Expr::LiteralNumber(1.0)))
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unary() -> Result<(), String> {
+        ///////////////////////////////////////////////////////////////////////
+        // Given a single unary minus token followed by a number literal token
+        let tokens = vec![Token::Minus, Token::NumberLiteral(1.0), Token::Semicolon];
+
+        let mut parser = Parser::new(tokens);
+
+        ///////////////////////////////////////////////////////////////////////
+        // When parsing the tokens
+        let statements = parser.parse().map_err(|e| e.to_string())?;
+
+        ///////////////////////////////////////////////////////////////////////
+        // Then the result should be a single expression
+        assert_eq!(statements.len(), 1);
+
+        assert_eq!(
+            statements[0],
+            Stmt::Expr(Box::new(Expr::UnaryMinus(Box::new(Expr::LiteralNumber(
+                1.0
+            )))))
         );
 
         Ok(())
@@ -357,6 +458,7 @@ mod tests {
             Token::NumberLiteral(1.0),
             Token::Plus,
             Token::NumberLiteral(2.0),
+            Token::Semicolon,
         ];
 
         let mut parser = Parser::new(tokens);
@@ -371,10 +473,10 @@ mod tests {
 
         assert_eq!(
             statements[0],
-            Expr::BinaryAdd(
+            Stmt::Expr(Box::new(Expr::BinaryAdd(
                 Box::new(Expr::LiteralNumber(1.0)),
                 Box::new(Expr::LiteralNumber(2.0))
-            )
+            )))
         );
 
         Ok(())
@@ -390,6 +492,7 @@ mod tests {
             Token::NumberLiteral(2.0),
             Token::Slash,
             Token::NumberLiteral(3.0),
+            Token::Semicolon,
         ];
 
         let mut parser = Parser::new(tokens);
@@ -404,22 +507,23 @@ mod tests {
 
         assert_eq!(
             statements[0],
-            Expr::BinaryAdd(
+            Stmt::Expr(Box::new(Expr::BinaryAdd(
                 Box::new(Expr::LiteralNumber(1.0)),
                 Box::new(Expr::BinaryDiv(
                     Box::new(Expr::LiteralNumber(2.0)),
                     Box::new(Expr::LiteralNumber(3.0))
-                )),
-            )
+                ))
+            )),)
         );
 
         Ok(())
     }
 
     #[rstest]
-    #[case("nil", "nil")]
-    #[case("\"my literal\"", "\"my literal\"")]
-    #[case("1.0 + 2.0 / 3.0", "{1 + {2 / 3}}")]
+    #[case("nil;", "nil")]
+    #[case("\"my literal\";", "\"my literal\"")]
+    #[case("1.0 + 2.0 / 3.0;", "{1 + {2 / 3}}")]
+    #[case("(1.0 + 2.0) / 3.0;", "{{1 + 2} / 3}")]
     fn test_ast_printer(
         #[case] source: String,
         #[case] expected_ast: String,

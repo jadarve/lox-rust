@@ -1,0 +1,2 @@
+print "evaluating 2 + 2 == 4 and 8 * 2 == 16";
+print 2 + 2 == 4 and 8 * 2 == 16;

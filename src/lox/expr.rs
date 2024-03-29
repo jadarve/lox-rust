@@ -1,6 +1,8 @@
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Expr {
     // Binary
+    BinaryOr(Box<Expr>, Box<Expr>),
+    BinaryAnd(Box<Expr>, Box<Expr>),
     BinaryEqual(Box<Expr>, Box<Expr>),
     BinaryNotEqual(Box<Expr>, Box<Expr>),
     BinaryLess(Box<Expr>, Box<Expr>),
@@ -28,6 +30,8 @@ pub enum Expr {
 impl Expr {
     pub fn accept<T>(&self, visitor: &dyn ExprVisitor<T>) -> T {
         match self {
+            Expr::BinaryOr(left, right) => visitor.visit_binary_or(left, right),
+            Expr::BinaryAnd(left, right) => visitor.visit_binary_and(left, right),
             Expr::BinaryEqual(left, right) => visitor.visit_binary_equal(left, right),
             Expr::BinaryNotEqual(left, right) => visitor.visit_binary_not_equal(left, right),
             Expr::BinaryLess(left, right) => visitor.visit_binary_less(left, right),
@@ -53,6 +57,8 @@ impl Expr {
 }
 
 pub trait ExprVisitor<T> {
+    fn visit_binary_or(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_and(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
     fn visit_binary_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
     fn visit_binary_not_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
     fn visit_binary_less(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
