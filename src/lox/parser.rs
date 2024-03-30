@@ -37,10 +37,12 @@ impl Parser {
     // Statement parsing
     fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
         match self.peek() {
-            Token::Print => self.parse_print_statement(),
+            Token::Print => self.parse_statement_print(),
             Token::Var => self.parse_statement_var_declaration(),
             Token::LeftBrace => self.parse_statement_block(),
-            _ => self.parse_expression_statement(),
+            Token::If => self.parse_statement_if(),
+            Token::While => self.parse_statement_while(),
+            _ => self.parse_statement_expression(),
         }
     }
 
@@ -63,7 +65,7 @@ impl Parser {
         Ok(Stmt::Block(statements))
     }
 
-    fn parse_print_statement(&mut self) -> Result<Stmt, ParseError> {
+    fn parse_statement_print(&mut self) -> Result<Stmt, ParseError> {
         self.advance(); // consume the print token
 
         let expr = self.parse_expression()?;
@@ -77,7 +79,7 @@ impl Parser {
         Ok(Stmt::Print(Box::new(expr)))
     }
 
-    fn parse_expression_statement(&mut self) -> Result<Stmt, ParseError> {
+    fn parse_statement_expression(&mut self) -> Result<Stmt, ParseError> {
         let expr = self.parse_expression()?;
 
         if !self.match_token(vec![Token::Semicolon]) {
@@ -114,6 +116,56 @@ impl Parser {
         }
 
         Ok(Stmt::VarDeclaration(identifier.clone(), initializer))
+    }
+
+    fn parse_statement_if(&mut self) -> Result<Stmt, ParseError> {
+        self.advance(); // consume the if token
+
+        if !self.match_token(vec![Token::LeftParenthesis]) {
+            return Err(ParseError {
+                message: "Expected '(' after if.".to_string(),
+            });
+        }
+
+        let condition = Box::new(self.parse_expression()?);
+
+        if !self.match_token(vec![Token::RightParenthesis]) {
+            return Err(ParseError {
+                message: "Expected ')' after if condition.".to_string(),
+            });
+        }
+
+        let then_branch = Box::new(self.parse_statement()?);
+
+        let else_branch = if self.match_token(vec![Token::Else]) {
+            Some(Box::new(self.parse_statement()?))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If(condition, then_branch, else_branch))
+    }
+
+    fn parse_statement_while(&mut self) -> Result<Stmt, ParseError> {
+        self.advance(); // consume the while token
+
+        if !self.match_token(vec![Token::LeftParenthesis]) {
+            return Err(ParseError {
+                message: "Expected '(' after while.".to_string(),
+            });
+        }
+
+        let condition = Box::new(self.parse_expression()?);
+
+        if !self.match_token(vec![Token::RightParenthesis]) {
+            return Err(ParseError {
+                message: "Expected ')' after while condition.".to_string(),
+            });
+        }
+
+        let body = Box::new(self.parse_statement()?);
+
+        Ok(Stmt::While(condition, body))
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -478,6 +530,35 @@ impl StmtVisitor<String> for AstPrinter {
         block.push_str("}");
 
         block
+    }
+
+    fn visit_if(
+        &mut self,
+        condition: &Box<Expr>,
+        then_branch: &Box<Stmt>,
+        else_branch: &Option<Box<Stmt>>,
+    ) -> String {
+        let mut if_stmt = format!(
+            "{{if {} then {} ",
+            condition.accept(self),
+            then_branch.accept(self)
+        );
+
+        if let Some(else_branch) = else_branch {
+            if_stmt.push_str(&format!(" else {}", else_branch.accept(self)));
+        }
+
+        if_stmt.push_str("}");
+
+        if_stmt
+    }
+
+    fn visit_while(&mut self, condition: &Box<Expr>, body: &Box<Stmt>) -> String {
+        format!(
+            "{{while {} then {}}}",
+            condition.accept(self),
+            body.accept(self)
+        )
     }
 }
 

@@ -77,6 +77,37 @@ impl StmtVisitor<Result<Value, String>> for Interpreter {
         self.environment.pop();
         Ok(Value::Nil)
     }
+
+    fn visit_if(
+        &mut self,
+        condition: &Box<super::Expr>,
+        then_branch: &Box<super::Stmt>,
+        else_branch: &Option<Box<super::Stmt>>,
+    ) -> Result<Value, String> {
+        if condition.accept(self)?.is_truthy() {
+            then_branch.accept(self)
+        } else {
+            match else_branch {
+                Some(stmt) => stmt.accept(self),
+                None => Ok(Value::Nil),
+            }
+        }
+    }
+
+    fn visit_while(
+        &mut self,
+        condition: &Box<super::Expr>,
+        body: &Box<super::Stmt>,
+    ) -> Result<Value, String> {
+        while condition.accept(self)?.is_truthy() {
+            match body.accept(self) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(Value::Nil)
+    }
 }
 
 impl ExprVisitor<Result<Value, String>> for Interpreter {
@@ -254,6 +285,12 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
         match (left_result, right_result) {
             (Value::Number(left), Value::Number(right)) => Ok(Value::Number(left + right)),
             (Value::String(left), Value::String(right)) => Ok(Value::String(left + &right)),
+            (Value::String(left), Value::Number(right)) => {
+                Ok(Value::String(left + &right.to_string()))
+            }
+            (Value::Number(left), Value::String(right)) => {
+                Ok(Value::String(left.to_string() + &right))
+            }
             _ => Err(
                 "Addition can only be applied to operands both numbers or both strings".to_string(),
             ),

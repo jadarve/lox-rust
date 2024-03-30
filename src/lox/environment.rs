@@ -33,13 +33,14 @@ impl Environment for EnvironmentImpl {
     }
 
     fn set(&mut self, name: &str, value: Value) -> Result<&Value, String> {
-        match self.value_stack.last_mut().unwrap().get_mut(name) {
-            Some(v) => {
+        for scope in self.value_stack.iter_mut().rev() {
+            if let Some(v) = scope.get_mut(name) {
                 *v = value;
-                Ok(v)
+                return Ok(v);
             }
-            None => Err(format!("Undefined variable '{}'", name)),
         }
+
+        Err(format!("Undefined variable '{}'", name))
     }
 
     fn define(&mut self, name: &str, value: Value) {

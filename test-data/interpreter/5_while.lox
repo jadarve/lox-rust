@@ -1,0 +1,6 @@
+var i = 0;
+while (i <= 10) {
+    var in_scope = i;
+    print "loop: i: " + i + " in_scope: " + in_scope;
+    i = i + 1;
+}

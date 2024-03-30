@@ -1,0 +1,9 @@
+var a = "my test string";
+if (a == "my test string") print "inside then: " + a;
+
+if (a == "moni moni") {
+    print "inside second if block";
+}
+else {
+    print "inside the else block of second if";
+}

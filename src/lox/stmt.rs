@@ -6,6 +6,8 @@ pub enum Stmt {
     Expr(Box<Expr>),
     VarDeclaration(String, Option<Box<Expr>>),
     Block(Vec<Stmt>),
+    If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
+    While(Box<Expr>, Box<Stmt>),
 }
 
 impl Stmt {
@@ -17,6 +19,10 @@ impl Stmt {
                 visitor.visit_var_declaration(name, initializer)
             }
             Stmt::Block(stmts) => visitor.visit_block(stmts),
+            Stmt::If(condition, then_branch, else_branch) => {
+                visitor.visit_if(condition, then_branch, else_branch)
+            }
+            Stmt::While(condition, body) => visitor.visit_while(condition, body),
         }
     }
 }
@@ -26,4 +32,11 @@ pub trait StmtVisitor<T> {
     fn visit_expr(&mut self, expr: &Box<Expr>) -> T;
     fn visit_var_declaration(&mut self, name: &String, initializer: &Option<Box<Expr>>) -> T;
     fn visit_block(&mut self, stmts: &Vec<Stmt>) -> T;
+    fn visit_if(
+        &mut self,
+        condition: &Box<Expr>,
+        then_branch: &Box<Stmt>,
+        else_branch: &Option<Box<Stmt>>,
+    ) -> T;
+    fn visit_while(&mut self, condition: &Box<Expr>, body: &Box<Stmt>) -> T;
 }
