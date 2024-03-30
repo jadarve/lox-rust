@@ -401,6 +401,8 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
 #[cfg(test)]
 mod tests {
 
+    use std::path::PathBuf;
+
     use super::Value;
     use rstest::*;
 
@@ -427,6 +429,26 @@ mod tests {
         ///////////////////////////////////////////////////////////////////////
         // Then the result should be the expected value
         assert_eq!(result, expected);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_from_file(
+        #[files("test-data/interpreter/*.lox")] base_path: PathBuf,
+    ) -> Result<(), String> {
+        ///////////////////////////////////////////////////////////////////////
+        // Given the source code in the file
+        let input_source = std::fs::read_to_string(base_path).map_err(|e| e.to_string())?;
+
+        // and given an interpreters
+
+        let mut interpreter = super::Interpreter::new();
+
+        ///////////////////////////////////////////////////////////////////////
+        // When executing the source code
+        // Then there should be no error
+        _ = interpreter.execute(input_source)?;
 
         Ok(())
     }
