@@ -1,0 +1,5 @@
+var a = "hello, world!";
+var b = "how are you?";
+print a + " " + b;
+
+print 2 + 2 and 9;

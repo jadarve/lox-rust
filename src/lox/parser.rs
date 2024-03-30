@@ -38,8 +38,29 @@ impl Parser {
     fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
         match self.peek() {
             Token::Print => self.parse_print_statement(),
+            Token::Var => self.parse_statement_var_declaration(),
+            Token::LeftBrace => self.parse_statement_block(),
             _ => self.parse_expression_statement(),
         }
+    }
+
+    fn parse_statement_block(&mut self) -> Result<Stmt, ParseError> {
+        self.advance(); // consume the left brace token
+
+        let mut statements = Vec::new();
+
+        while !self.is_at_end() && !self.check(&Token::RightBrace) {
+            let stmt = self.parse_statement()?;
+            statements.push(stmt);
+        }
+
+        if !self.match_token(vec![Token::RightBrace]) {
+            return Err(ParseError {
+                message: "Expected '}' after block.".to_string(),
+            });
+        }
+
+        Ok(Stmt::Block(statements))
     }
 
     fn parse_print_statement(&mut self) -> Result<Stmt, ParseError> {
@@ -68,10 +89,54 @@ impl Parser {
         Ok(Stmt::Expr(Box::new(expr)))
     }
 
+    fn parse_statement_var_declaration(&mut self) -> Result<Stmt, ParseError> {
+        self.advance(); // consume the var token
+
+        let identifier = match self.advance() {
+            Token::Identifier(s) => s.clone(),
+            _ => {
+                return Err(ParseError {
+                    message: "Expected identifier after var.".to_string(),
+                });
+            }
+        };
+
+        let initializer = if self.match_token(vec![Token::Equal]) {
+            Some(Box::new(self.parse_expression()?))
+        } else {
+            None
+        };
+
+        if !self.match_token(vec![Token::Semicolon]) {
+            return Err(ParseError {
+                message: "Expected ';' after variable declaration.".to_string(),
+            });
+        }
+
+        Ok(Stmt::VarDeclaration(identifier.clone(), initializer))
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     // Expression parsing
     fn parse_expression(&mut self) -> Result<Expr, ParseError> {
-        self.parse_expression_or()
+        self.parse_expression_assignment()
+    }
+
+    fn parse_expression_assignment(&mut self) -> Result<Expr, ParseError> {
+        let expr = self.parse_expression_or()?;
+
+        if self.match_token(vec![Token::Equal]) {
+            let value = self.parse_expression_or()?;
+
+            match expr {
+                Expr::Identifier(s) => Ok(Expr::Assign(s, Box::new(value))),
+                _ => Err(ParseError {
+                    message: "Invalid assignment target.".to_string(),
+                }),
+            }
+        } else {
+            Ok(expr)
+        }
     }
 
     fn parse_expression_or(&mut self) -> Result<Expr, ParseError> {
@@ -302,94 +367,117 @@ impl Parser {
 struct AstPrinter {}
 
 impl ExprVisitor<String> for AstPrinter {
-    fn visit_binary_or(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_assign(&mut self, left: &String, right: &Box<Expr>) -> String {
+        format!("{{{} = {}}}", left, right.accept(self))
+    }
+
+    fn visit_binary_or(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} or {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_and(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_and(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} and {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} == {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_not_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_not_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} != {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_less(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_less(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} < {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_less_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_less_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} <= {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_greater(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_greater(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} > {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_greater_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_greater_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} >= {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_add(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_add(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} + {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_sub(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_sub(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} - {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_mul(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_mul(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} * {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_binary_div(&self, left: &Box<Expr>, right: &Box<Expr>) -> String {
+    fn visit_binary_div(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {
         format!("{{{} / {}}}", left.accept(self), right.accept(self))
     }
 
-    fn visit_unary_bang(&self, expr: &Box<Expr>) -> String {
+    fn visit_unary_bang(&mut self, expr: &Box<Expr>) -> String {
         format!("{{!{}}}", expr.accept(self))
     }
 
-    fn visit_unary_minus(&self, expr: &Box<Expr>) -> String {
+    fn visit_unary_minus(&mut self, expr: &Box<Expr>) -> String {
         format!("{{-{}}}", expr.accept(self))
     }
 
-    fn visit_literal_string(&self, value: &String) -> String {
+    fn visit_literal_string(&mut self, value: &String) -> String {
         format!("\"{}\"", value)
     }
 
-    fn visit_literal_number(&self, value: &f64) -> String {
+    fn visit_literal_number(&mut self, value: &f64) -> String {
         value.to_string()
     }
 
-    fn visit_false(&self) -> String {
+    fn visit_false(&mut self) -> String {
         "false".to_string()
     }
 
-    fn visit_true(&self) -> String {
+    fn visit_true(&mut self) -> String {
         "true".to_string()
     }
 
-    fn visit_nil(&self) -> String {
+    fn visit_nil(&mut self) -> String {
         "nil".to_string()
     }
 
-    fn visit_identifier(&self, value: &String) -> String {
+    fn visit_identifier(&mut self, value: &String) -> String {
         value.clone()
     }
 }
 
 impl StmtVisitor<String> for AstPrinter {
-    fn visit_print(&self, expr: &Box<Expr>) -> String {
+    fn visit_print(&mut self, expr: &Box<Expr>) -> String {
         format!("{{print {}}}", expr.accept(self))
     }
 
-    fn visit_expr(&self, expr: &Box<Expr>) -> String {
+    fn visit_expr(&mut self, expr: &Box<Expr>) -> String {
         expr.accept(self)
+    }
+
+    fn visit_var_declaration(&mut self, name: &String, initializer: &Option<Box<Expr>>) -> String {
+        match initializer {
+            Some(expr) => format!("{{var {} = {}}}", name, expr.accept(self)),
+            None => format!("{{var {}}}", name),
+        }
+    }
+
+    fn visit_block(&mut self, stmts: &Vec<Stmt>) -> String {
+        let mut block = String::from("{");
+
+        for stmt in stmts {
+            block.push_str(&stmt.accept(self));
+        }
+
+        block.push_str("}");
+
+        block
     }
 }
 
@@ -524,6 +612,7 @@ mod tests {
     #[case("\"my literal\";", "\"my literal\"")]
     #[case("1.0 + 2.0 / 3.0;", "{1 + {2 / 3}}")]
     #[case("(1.0 + 2.0) / 3.0;", "{{1 + 2} / 3}")]
+    #[case("var a = 2 + 2;", "{var a = {2 + 2}}")]
     fn test_ast_printer(
         #[case] source: String,
         #[case] expected_ast: String,
@@ -550,8 +639,8 @@ mod tests {
         assert_eq!(statements.len(), 1);
 
         // and when printing the AST
-        let ast_printer = AstPrinter {};
-        let ast_string = statements[0].accept(&ast_printer);
+        let mut ast_printer = AstPrinter {};
+        let ast_string = statements[0].accept(&mut ast_printer);
 
         // the resulting string should be equal to the expected
         assert_eq!(ast_string, expected_ast);

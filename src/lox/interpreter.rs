@@ -31,52 +31,100 @@ impl Interpreter {
 }
 
 impl StmtVisitor<Result<Value, String>> for Interpreter {
-    fn visit_print(&self, expr: &Box<super::Expr>) -> Result<Value, String> {
+    fn visit_print(&mut self, expr: &Box<super::Expr>) -> Result<Value, String> {
         let value = expr.accept(self)?;
         println!("{}", value);
-        Ok(value)
+        Ok(Value::Nil)
     }
 
-    fn visit_expr(&self, expr: &Box<super::Expr>) -> Result<Value, String> {
+    fn visit_expr(&mut self, expr: &Box<super::Expr>) -> Result<Value, String> {
+        // This is the only statement that I need to return a value
         expr.accept(self)
+    }
+
+    fn visit_var_declaration(
+        &mut self,
+        name: &String,
+        initializer: &Option<Box<super::Expr>>,
+    ) -> Result<Value, String> {
+        match initializer {
+            Some(expr) => {
+                let value = expr.accept(self)?;
+                self.environment.define(name, value.clone());
+                Ok(value)
+            }
+            None => {
+                self.environment.define(name, Value::Nil);
+                Ok(Value::Nil)
+            }
+        }
+    }
+
+    fn visit_block(&mut self, stmts: &Vec<super::Stmt>) -> Result<Value, String> {
+        self.environment.push();
+        for stmt in stmts {
+            match stmt.accept(self) {
+                Ok(_) => {}
+                Err(e) => {
+                    // ugly, better to have some form of RAII for popping the environment
+                    self.environment.pop();
+                    return Err(e);
+                }
+            }
+        }
+
+        // all statements in the block were executed successfully
+        self.environment.pop();
+        Ok(Value::Nil)
     }
 }
 
 impl ExprVisitor<Result<Value, String>> for Interpreter {
+    fn visit_assign(&mut self, left: &String, right: &Box<super::Expr>) -> Result<Value, String> {
+        match self.environment.get(left) {
+            Some(_) => {
+                let value = right.accept(self)?;
+                self.environment.set(left, value)?;
+
+                // FIXME: need to avoid cloning the value
+                Ok(self.environment.get(left).unwrap().clone())
+            }
+            None => Err(format!("Undefined variable '{}'", left)),
+        }
+    }
+
     fn visit_binary_or(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
-        // first, evaluate the left and right expressions
+        // first, evaluate the left expression
         let left_result = left.accept(self)?;
-        let right_result = right.accept(self)?;
 
-        // then evaluate the or
-        match (left_result, right_result) {
-            (Value::Boolean(left), Value::Boolean(right)) => Ok(Value::Boolean(left || right)),
-            _ => Err("Or operator can only be applied to booleans".to_string()),
-        }
+        return if left_result.is_truthy() {
+            Ok(left_result)
+        } else {
+            right.accept(self)
+        };
     }
 
     fn visit_binary_and(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
-        // first, evaluate the left and right expressions
+        // first, evaluate the left expression
         let left_result = left.accept(self)?;
-        let right_result = right.accept(self)?;
 
-        // then evaluate the and
-        match (left_result, right_result) {
-            (Value::Boolean(left), Value::Boolean(right)) => Ok(Value::Boolean(left && right)),
-            _ => Err("And operator can only be applied to booleans".to_string()),
-        }
+        return if left_result.is_truthy() {
+            right.accept(self)
+        } else {
+            Ok(left_result)
+        };
     }
 
     fn visit_binary_equal(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -96,7 +144,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_not_equal(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -116,7 +164,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_less(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -136,7 +184,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_less_equal(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -155,7 +203,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_greater(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -175,7 +223,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_greater_equal(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -194,7 +242,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_add(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -213,7 +261,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_sub(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -229,7 +277,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_mul(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -245,7 +293,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
     }
 
     fn visit_binary_div(
-        &self,
+        &mut self,
         left: &Box<super::Expr>,
         right: &Box<super::Expr>,
     ) -> Result<Value, String> {
@@ -265,7 +313,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
         }
     }
 
-    fn visit_unary_bang(&self, expr: &Box<super::Expr>) -> Result<Value, String> {
+    fn visit_unary_bang(&mut self, expr: &Box<super::Expr>) -> Result<Value, String> {
         match expr.accept(self)? {
             Value::Boolean(boolean_value) => Ok(Value::Boolean(!boolean_value)),
             Value::Number(_) => Err("Unary bang cannot be applied to a number".to_string()),
@@ -274,7 +322,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
         }
     }
 
-    fn visit_unary_minus(&self, expr: &Box<super::Expr>) -> Result<Value, String> {
+    fn visit_unary_minus(&mut self, expr: &Box<super::Expr>) -> Result<Value, String> {
         match expr.accept(self)? {
             Value::Number(number_value) => Ok(Value::Number(-number_value)),
             Value::String(_) => Err("Unary minus cannot be applied to a string".to_string()),
@@ -283,29 +331,33 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
         }
     }
 
-    fn visit_literal_string(&self, value: &String) -> Result<Value, String> {
+    fn visit_literal_string(&mut self, value: &String) -> Result<Value, String> {
         // FIXME: Is it possible to avoid the string clone?
         Ok(Value::String(value.clone()))
     }
 
-    fn visit_literal_number(&self, value: &f64) -> Result<Value, String> {
+    fn visit_literal_number(&mut self, value: &f64) -> Result<Value, String> {
         Ok(Value::Number(*value))
     }
 
-    fn visit_false(&self) -> Result<Value, String> {
+    fn visit_false(&mut self) -> Result<Value, String> {
         Ok(Value::Boolean(false))
     }
 
-    fn visit_true(&self) -> Result<Value, String> {
+    fn visit_true(&mut self) -> Result<Value, String> {
         Ok(Value::Boolean(true))
     }
 
-    fn visit_nil(&self) -> Result<Value, String> {
+    fn visit_nil(&mut self) -> Result<Value, String> {
         Ok(Value::Nil)
     }
 
-    fn visit_identifier(&self, _value: &String) -> Result<Value, String> {
-        todo!()
+    fn visit_identifier(&mut self, value: &String) -> Result<Value, String> {
+        // FIXME: need to avoid cloning the value
+        match self.environment.get(value) {
+            Some(value) => Ok(value.clone()),
+            None => Err(format!("Undefined variable '{}'", value)),
+        }
     }
 }
 

@@ -5,28 +5,35 @@ pub trait Environment {
     fn set(&mut self, name: &str, value: Value) -> Result<&Value, String>;
     fn define(&mut self, name: &str, value: Value);
 
-    // TODO: get parent environment
+    fn push(&mut self);
+    fn pop(&mut self);
 }
 
 pub struct EnvironmentImpl {
-    values: std::collections::HashMap<String, Value>,
+    value_stack: Vec<std::collections::HashMap<String, Value>>,
 }
 
 impl EnvironmentImpl {
     pub fn new() -> Self {
         Self {
-            values: std::collections::HashMap::new(),
+            value_stack: vec![std::collections::HashMap::new()],
         }
     }
 }
 
 impl Environment for EnvironmentImpl {
     fn get(&self, name: &str) -> Option<&Value> {
-        self.values.get(name)
+        for scope in self.value_stack.iter().rev() {
+            if let Some(v) = scope.get(name) {
+                return Some(v);
+            }
+        }
+
+        None
     }
 
     fn set(&mut self, name: &str, value: Value) -> Result<&Value, String> {
-        match self.values.get_mut(name) {
+        match self.value_stack.last_mut().unwrap().get_mut(name) {
             Some(v) => {
                 *v = value;
                 Ok(v)
@@ -36,6 +43,19 @@ impl Environment for EnvironmentImpl {
     }
 
     fn define(&mut self, name: &str, value: Value) {
-        self.values.insert(name.to_string(), value);
+        self.value_stack
+            .last_mut()
+            .unwrap()
+            .insert(name.to_string(), value);
+    }
+
+    fn push(&mut self) {
+        self.value_stack.push(std::collections::HashMap::new());
+    }
+
+    fn pop(&mut self) {
+        if self.value_stack.len() > 1 {
+            self.value_stack.pop();
+        }
     }
 }

@@ -1,0 +1,8 @@
+var a = "a in the outer scope";
+print "outer scope: " + a;
+{
+    print "entering inner scope";
+    var a = "a in inner scope";
+    print a;
+}
+print "outer scope again: " + a;

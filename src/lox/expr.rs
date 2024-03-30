@@ -1,5 +1,9 @@
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Expr {
+    // Assign
+    // TODO: left side should be an Expr once we need lvalues
+    Assign(String, Box<Expr>),
+
     // Binary
     BinaryOr(Box<Expr>, Box<Expr>),
     BinaryAnd(Box<Expr>, Box<Expr>),
@@ -28,8 +32,9 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn accept<T>(&self, visitor: &dyn ExprVisitor<T>) -> T {
+    pub fn accept<T>(&self, visitor: &mut dyn ExprVisitor<T>) -> T {
         match self {
+            Expr::Assign(left, right) => visitor.visit_assign(left, right),
             Expr::BinaryOr(left, right) => visitor.visit_binary_or(left, right),
             Expr::BinaryAnd(left, right) => visitor.visit_binary_and(left, right),
             Expr::BinaryEqual(left, right) => visitor.visit_binary_equal(left, right),
@@ -57,28 +62,29 @@ impl Expr {
 }
 
 pub trait ExprVisitor<T> {
-    fn visit_binary_or(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_and(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_not_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_less(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_less_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_greater(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_greater_equal(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_add(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_sub(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_mul(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
-    fn visit_binary_div(&self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_assign(&mut self, left: &String, right: &Box<Expr>) -> T;
+    fn visit_binary_or(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_and(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_not_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_less(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_less_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_greater(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_greater_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_add(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_sub(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_mul(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
+    fn visit_binary_div(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
 
-    fn visit_unary_bang(&self, expr: &Box<Expr>) -> T;
-    fn visit_unary_minus(&self, expr: &Box<Expr>) -> T;
+    fn visit_unary_bang(&mut self, expr: &Box<Expr>) -> T;
+    fn visit_unary_minus(&mut self, expr: &Box<Expr>) -> T;
 
-    fn visit_literal_string(&self, value: &String) -> T;
-    fn visit_literal_number(&self, value: &f64) -> T;
-    fn visit_false(&self) -> T;
-    fn visit_true(&self) -> T;
-    fn visit_nil(&self) -> T;
-    fn visit_identifier(&self, value: &String) -> T;
+    fn visit_literal_string(&mut self, value: &String) -> T;
+    fn visit_literal_number(&mut self, value: &f64) -> T;
+    fn visit_false(&mut self) -> T;
+    fn visit_true(&mut self) -> T;
+    fn visit_nil(&mut self) -> T;
+    fn visit_identifier(&mut self, value: &String) -> T;
 }
 
 #[cfg(test)]
