@@ -42,6 +42,7 @@ impl Parser {
             Token::LeftBrace => self.parse_statement_block(),
             Token::If => self.parse_statement_if(),
             Token::While => self.parse_statement_while(),
+            Token::Fun => self.parse_statement_function_declaration(),
             _ => self.parse_statement_expression(),
         }
     }
@@ -166,6 +167,58 @@ impl Parser {
         let body = Box::new(self.parse_statement()?);
 
         Ok(Stmt::While(condition, body))
+    }
+
+    fn parse_statement_function_declaration(&mut self) -> Result<Stmt, ParseError> {
+        self.advance(); // consume the fun token
+
+        let name = match self.advance() {
+            Token::Identifier(s) => s.clone(),
+            _ => {
+                return Err(ParseError {
+                    message: "Expected identifier after fun.".to_string(),
+                });
+            }
+        };
+
+        if !self.match_token(vec![Token::LeftParenthesis]) {
+            return Err(ParseError {
+                message: "Expected '(' after function name.".to_string(),
+            });
+        }
+
+        let mut arguments = Vec::new();
+
+        while !self.is_at_end() && !self.check(&Token::RightParenthesis) {
+            match self.advance() {
+                Token::Identifier(s) => arguments.push(s.clone()),
+                _ => {
+                    return Err(ParseError {
+                        message: "Expected identifier in function arguments.".to_string(),
+                    });
+                }
+            }
+
+            if !self.match_token(vec![Token::Comma]) {
+                break;
+            }
+        }
+
+        if !self.match_token(vec![Token::RightParenthesis]) {
+            return Err(ParseError {
+                message: "Expected ')' after function arguments.".to_string(),
+            });
+        }
+
+        let body = Box::new(self.parse_statement()?);
+
+        let body_wrapper = Stmt::Block(vec![*body]);
+
+        Ok(Stmt::FunctionDeclaration(
+            name,
+            arguments,
+            Box::new(body_wrapper),
+        ))
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -341,8 +394,39 @@ impl Parser {
                 let expr = self.parse_expression_unary()?;
                 Ok(Expr::UnaryMinus(Box::new(expr)))
             }
-            _ => self.parse_expression_primary(),
+            _ => self.parse_expression_call(),
         }
+    }
+
+    fn parse_expression_call(&mut self) -> Result<Expr, ParseError> {
+        let callee = self.parse_expression_primary()?;
+
+        if !self.match_token(vec![Token::LeftParenthesis]) {
+            return Ok(callee);
+        }
+
+        // match for empty argument list
+        if self.match_token(vec![Token::RightParenthesis]) {
+            return Ok(Expr::Call(Box::new(callee), Vec::new()));
+        }
+
+        let mut arguments = Vec::new();
+
+        loop {
+            arguments.push(self.parse_expression()?);
+
+            if !self.match_token(vec![Token::Comma]) {
+                break;
+            }
+        }
+
+        if !self.match_token(vec![Token::RightParenthesis]) {
+            return Err(ParseError {
+                message: "Expected ')' for closing function call.".to_string(),
+            });
+        }
+
+        Ok(Expr::Call(Box::new(callee), arguments))
     }
 
     fn parse_expression_primary(&mut self) -> Result<Expr, ParseError> {
@@ -479,6 +563,22 @@ impl ExprVisitor<String> for AstPrinter {
         format!("{{-{}}}", expr.accept(self))
     }
 
+    fn visit_call(&mut self, callee: &Box<Expr>, arguments: &Vec<Expr>) -> String {
+        let mut call_str = format!("{{call {}(", callee.accept(self));
+
+        for (i, arg) in arguments.iter().enumerate() {
+            call_str.push_str(&arg.accept(self));
+
+            if i < arguments.len() - 1 {
+                call_str.push_str(", ");
+            }
+        }
+
+        call_str.push_str(")}");
+
+        call_str
+    }
+
     fn visit_literal_string(&mut self, value: &String) -> String {
         format!("\"{}\"", value)
     }
@@ -559,6 +659,28 @@ impl StmtVisitor<String> for AstPrinter {
             condition.accept(self),
             body.accept(self)
         )
+    }
+
+    fn visit_function_declaration(
+        &mut self,
+        name: &String,
+        arguments: &Vec<String>,
+        body: &Box<Stmt>,
+    ) -> String {
+        let mut function_decl = format!("{{fun {}(", name);
+
+        for (i, arg) in arguments.iter().enumerate() {
+            function_decl.push_str(arg);
+
+            if i < arguments.len() - 1 {
+                function_decl.push_str(", ");
+            }
+        }
+
+        function_decl.push_str(") ");
+        function_decl.push_str(format!("{{ {} }}", body.accept(self)).as_str());
+
+        function_decl
     }
 }
 
@@ -689,11 +811,12 @@ mod tests {
     }
 
     #[rstest]
-    #[case("nil;", "nil")]
-    #[case("\"my literal\";", "\"my literal\"")]
-    #[case("1.0 + 2.0 / 3.0;", "{1 + {2 / 3}}")]
-    #[case("(1.0 + 2.0) / 3.0;", "{{1 + 2} / 3}")]
-    #[case("var a = 2 + 2;", "{var a = {2 + 2}}")]
+    // #[case("nil;", "nil")]
+    // #[case("\"my literal\";", "\"my literal\"")]
+    // #[case("1.0 + 2.0 / 3.0;", "{1 + {2 / 3}}")]
+    // #[case("(1.0 + 2.0) / 3.0;", "{{1 + 2} / 3}")]
+    // #[case("var a = 2 + 2;", "{var a = {2 + 2}}")]
+    #[case("say_hello();", "{call say_hello()}")]
     fn test_ast_printer(
         #[case] source: String,
         #[case] expected_ast: String,

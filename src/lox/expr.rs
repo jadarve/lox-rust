@@ -22,6 +22,9 @@ pub enum Expr {
     UnaryBang(Box<Expr>),
     UnaryMinus(Box<Expr>),
 
+    // Function call
+    Call(Box<Expr>, Vec<Expr>),
+
     // Terminal nodes
     LiteralString(String),
     LiteralNumber(f64),
@@ -51,6 +54,7 @@ impl Expr {
             Expr::BinaryDiv(left, right) => visitor.visit_binary_div(left, right),
             Expr::UnaryBang(expr) => visitor.visit_unary_bang(expr),
             Expr::UnaryMinus(expr) => visitor.visit_unary_minus(expr),
+            Expr::Call(callee, arguments) => visitor.visit_call(callee, arguments),
             Expr::LiteralString(value) => visitor.visit_literal_string(value),
             Expr::LiteralNumber(value) => visitor.visit_literal_number(value),
             Expr::False => visitor.visit_false(),
@@ -85,6 +89,7 @@ pub trait ExprVisitor<T> {
     fn visit_true(&mut self) -> T;
     fn visit_nil(&mut self) -> T;
     fn visit_identifier(&mut self, value: &String) -> T;
+    fn visit_call(&mut self, callee: &Box<Expr>, arguments: &Vec<Expr>) -> T;
 }
 
 #[cfg(test)]

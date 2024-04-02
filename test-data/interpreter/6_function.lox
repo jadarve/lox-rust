@@ -1,0 +1,13 @@
+fun say_hello(a) {
+    var b = "hello: " + a;
+    {
+        print_to(b);
+    }
+}
+
+fun print_to(msg) {
+    print msg;
+}
+
+say_hello("moni");
+say_hello("Juan");

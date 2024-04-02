@@ -1,4 +1,4 @@
-use super::{Environment, ExprVisitor, Parser, Scanner, StmtVisitor, Value};
+use super::{function, Environment, ExprVisitor, Parser, Scanner, StmtVisitor, Value};
 
 pub struct Interpreter {
     environment: Box<dyn Environment>,
@@ -50,31 +50,31 @@ impl StmtVisitor<Result<Value, String>> for Interpreter {
         match initializer {
             Some(expr) => {
                 let value = expr.accept(self)?;
-                self.environment.define(name, value.clone());
+                self.environment.define_variable(name, value.clone());
                 Ok(value)
             }
             None => {
-                self.environment.define(name, Value::Nil);
+                self.environment.define_variable(name, Value::Nil);
                 Ok(Value::Nil)
             }
         }
     }
 
     fn visit_block(&mut self, stmts: &Vec<super::Stmt>) -> Result<Value, String> {
-        self.environment.push();
+        self.environment.push_variable_stack();
         for stmt in stmts {
             match stmt.accept(self) {
                 Ok(_) => {}
                 Err(e) => {
                     // ugly, better to have some form of RAII for popping the environment
-                    self.environment.pop();
+                    self.environment.pop_variable_stack();
                     return Err(e);
                 }
             }
         }
 
         // all statements in the block were executed successfully
-        self.environment.pop();
+        self.environment.pop_variable_stack();
         Ok(Value::Nil)
     }
 
@@ -108,17 +108,30 @@ impl StmtVisitor<Result<Value, String>> for Interpreter {
 
         Ok(Value::Nil)
     }
+
+    fn visit_function_declaration(
+        &mut self,
+        name: &String,
+        arguments: &Vec<String>,
+        body: &Box<super::Stmt>,
+    ) -> Result<Value, String> {
+        let function = super::FunctionImpl::new(name.clone(), arguments.clone(), body.clone());
+
+        self.environment.define_function(name, Box::new(function));
+
+        Ok(Value::Nil)
+    }
 }
 
 impl ExprVisitor<Result<Value, String>> for Interpreter {
     fn visit_assign(&mut self, left: &String, right: &Box<super::Expr>) -> Result<Value, String> {
-        match self.environment.get(left) {
+        match self.environment.get_variable(left) {
             Some(_) => {
                 let value = right.accept(self)?;
-                self.environment.set(left, value)?;
+                self.environment.set_variable(left, value)?;
 
                 // FIXME: need to avoid cloning the value
-                Ok(self.environment.get(left).unwrap().clone())
+                Ok(self.environment.get_variable(left).unwrap().clone())
             }
             None => Err(format!("Undefined variable '{}'", left)),
         }
@@ -356,6 +369,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
             Value::Number(_) => Err("Unary bang cannot be applied to a number".to_string()),
             Value::String(_) => Err("Unary bang cannot be applied to a string".to_string()),
             Value::Nil => Err("Unary bang cannot be applied to nil".to_string()),
+            Value::Callable(_s) => Err("Unary bang cannot be applied to a function".to_string()),
         }
     }
 
@@ -365,6 +379,52 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
             Value::String(_) => Err("Unary minus cannot be applied to a string".to_string()),
             Value::Boolean(_) => Err("Unary minus cannot be applied to a boolean".to_string()),
             Value::Nil => Err("Unary minus cannot be applied to nil".to_string()),
+            Value::Callable(_s) => Err("Unary minus cannot be applied to a function".to_string()),
+        }
+    }
+
+    fn visit_call(
+        &mut self,
+        callee: &Box<super::Expr>,
+        arguments: &Vec<super::Expr>,
+    ) -> Result<Value, String> {
+        // evaluate the callee expression
+        let callee_value = callee.accept(self)?;
+
+        match callee_value {
+            Value::Callable(callable) => {
+                // validate if the number of arguments is correct
+                if callable.get_arg_count() != arguments.len() {
+                    return Err(format!(
+                        "Expected {} arguments, but got {}",
+                        callable.get_arg_count(),
+                        arguments.len()
+                    ));
+                }
+
+                // evaluate the arguments
+                let mut evaluated_arguments = Vec::new();
+                for arg in arguments {
+                    evaluated_arguments.push(arg.accept(self)?);
+                }
+
+                // create the environment to call the function
+                self.environment.branch_push();
+
+                // bind the arguments to the new function environment
+                for (i, arg) in evaluated_arguments.iter().enumerate() {
+                    // TODO: pop environment if there is an error
+                    let arg_name = callable.get_arg_name(i)?;
+                    self.environment.define_variable(&arg_name, arg.clone());
+                }
+
+                let body = callable.get_body();
+                let body_result = body.accept(self);
+
+                self.environment.branch_pop();
+                body_result
+            }
+            _ => Err("Can only call functions and classes".to_string()),
         }
     }
 
@@ -391,7 +451,7 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
 
     fn visit_identifier(&mut self, value: &String) -> Result<Value, String> {
         // FIXME: need to avoid cloning the value
-        match self.environment.get(value) {
+        match self.environment.get_variable(value) {
             Some(value) => Ok(value.clone()),
             None => Err(format!("Undefined variable '{}'", value)),
         }

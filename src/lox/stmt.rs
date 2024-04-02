@@ -1,6 +1,6 @@
 use super::Expr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
     Print(Box<Expr>),
     Expr(Box<Expr>),
@@ -8,6 +8,7 @@ pub enum Stmt {
     Block(Vec<Stmt>),
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
     While(Box<Expr>, Box<Stmt>),
+    FunctionDeclaration(String, Vec<String>, Box<Stmt>), // name, arguments, body
 }
 
 impl Stmt {
@@ -23,6 +24,9 @@ impl Stmt {
                 visitor.visit_if(condition, then_branch, else_branch)
             }
             Stmt::While(condition, body) => visitor.visit_while(condition, body),
+            Stmt::FunctionDeclaration(name, arguments, body) => {
+                visitor.visit_function_declaration(name, arguments, body)
+            }
         }
     }
 }
@@ -39,4 +43,10 @@ pub trait StmtVisitor<T> {
         else_branch: &Option<Box<Stmt>>,
     ) -> T;
     fn visit_while(&mut self, condition: &Box<Expr>, body: &Box<Stmt>) -> T;
+    fn visit_function_declaration(
+        &mut self,
+        name: &String,
+        arguments: &Vec<String>,
+        body: &Box<Stmt>,
+    ) -> T;
 }
