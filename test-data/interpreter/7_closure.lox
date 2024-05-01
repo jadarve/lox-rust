@@ -1,0 +1,19 @@
+var a = "global";
+{
+    var b = "variable b";
+    print "before fun declaration: " + b;
+    
+    fun showA() {
+
+        print "start showA";
+        print a;
+        print b;
+        print "end showA";
+    }
+
+    showA();
+    var a = "block";
+    showA();
+
+    print "block a: " + a;
+}

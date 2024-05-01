@@ -409,7 +409,8 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
                 }
 
                 // create the environment to call the function
-                self.environment.branch_push();
+                // self.environment.branch_push();
+                self.environment.push_variable_stack();
 
                 // bind the arguments to the new function environment
                 for (i, arg) in evaluated_arguments.iter().enumerate() {
@@ -421,7 +422,8 @@ impl ExprVisitor<Result<Value, String>> for Interpreter {
                 let body = callable.get_body();
                 let body_result = body.accept(self);
 
-                self.environment.branch_pop();
+                // self.environment.branch_pop();
+                self.environment.pop_variable_stack();
                 body_result
             }
             _ => Err("Can only call functions and classes".to_string()),
