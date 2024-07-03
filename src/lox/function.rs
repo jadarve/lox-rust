@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use super::{Callable, EnvironmentImpl, Stmt, Value};
+use crate::lox::new_value_box;
+
+use super::{Callable, Stmt, Value, ValueBox};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionImpl {
@@ -20,7 +22,7 @@ impl FunctionImpl {
 }
 
 impl Callable for FunctionImpl {
-    fn call(&self) -> Result<Value, String> {
+    fn call(&self) -> Result<ValueBox, String> {
         println!("FunctionImpl::call(): {}", self.name);
 
         // let mut environment = EnvironmentImpl::new();
@@ -36,7 +38,7 @@ impl Callable for FunctionImpl {
 
         // result
 
-        Ok(Value::Nil)
+        Ok(new_value_box(Value::Nil))
     }
 
     fn get_arg_name(&self, arg_number: usize) -> Result<String, String> {
