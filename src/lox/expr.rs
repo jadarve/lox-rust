@@ -3,7 +3,6 @@ pub type ParseTreeId = u32;
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Expr {
     // Assign
-    // TODO: left side should be an Expr once we need lvalues
     Assign(ExprAssign),
 
     // Binary
@@ -33,7 +32,7 @@ pub enum Expr {
     False,
     True,
     Nil,
-    Identifier(String),
+    Identifier(ExprIdentifier),
     // TODO: Parentheses
 }
 
@@ -91,15 +90,23 @@ pub trait ExprVisitor<T> {
     fn visit_false(&mut self) -> T;
     fn visit_true(&mut self) -> T;
     fn visit_nil(&mut self) -> T;
-    fn visit_identifier(&mut self, value: &String) -> T;
+    fn visit_identifier(&mut self, value: &ExprIdentifier) -> T;
     fn visit_call(&mut self, callee: &Box<Expr>, arguments: &Vec<Expr>) -> T;
 }
 
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub struct ExprAssign {
     pub parse_tree_id: ParseTreeId,
+
+    // TODO: left side should be an Expr once we need lvalues
     pub left: String,
     pub right: Box<Expr>,
+}
+
+#[derive(PartialEq, PartialOrd, Debug, Clone)]
+pub struct ExprIdentifier {
+    pub parse_tree_id: ParseTreeId,
+    pub id: String,
 }
 
 #[cfg(test)]

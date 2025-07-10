@@ -1,3 +1,5 @@
+use crate::lox::ExprIdentifier;
+
 use super::{
     new_value_box, Environment, ExprAssign, ExprVisitor, Parser, Resolver, Scanner, StmtVisitor,
     Value, ValueBox,
@@ -569,11 +571,11 @@ impl ExprVisitor<Result<ValueBox, String>> for Interpreter {
         Ok(new_value_box(Value::Nil))
     }
 
-    fn visit_identifier(&mut self, value: &String) -> Result<ValueBox, String> {
+    fn visit_identifier(&mut self, value: &ExprIdentifier) -> Result<ValueBox, String> {
         // FIXME: need to avoid cloning the value
-        match self.environment.get_variable(value) {
+        match self.environment.get_variable(&value.id) {
             Some(value) => Ok(value.clone()),
-            None => Err(format!("Undefined variable '{}'", value)),
+            None => Err(format!("Undefined variable '{}'", value.id)),
         }
 
         // self.environment

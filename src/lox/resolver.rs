@@ -1,4 +1,4 @@
-use crate::lox::expr::Expr;
+use crate::lox::{expr::Expr, ExprIdentifier};
 use std::collections::HashMap;
 
 use super::{ExprAssign, ExprVisitor, ParseTreeId, Stmt, StmtVisitor};
@@ -26,7 +26,8 @@ impl Resolver {
             stmt.accept(self)?;
         }
 
-        Ok(self.interpreter_local_map.clone())
+        // NOTE: using std::mem::take saves clonning the local map
+        Ok(std::mem::take(&mut self.interpreter_local_map))
     }
 
     fn begin_scope(&mut self) {
@@ -52,15 +53,29 @@ impl Resolver {
     }
 
     fn resolve_local(&mut self, parse_tree_id: ParseTreeId, name: &str) {
+        println!(
+            "Resolver: resolve_local: parse_tree_id: {}, name: {}, scopes: {}",
+            parse_tree_id,
+            name,
+            self.scopes.len()
+        );
+
         for (i, scope) in self.scopes.iter().enumerate().rev() {
+            println!("scope: {i}: {:?}", scope);
             if scope.contains_key(name) {
-                self.interpreter_local_map.insert(parse_tree_id, i);
-                println!(
-                    "Resolver: resolve_local: parse_tree_id: {}, name: {}, scope_index: {}",
-                    parse_tree_id, name, i
-                );
+                let index = self.scopes.len() - 1 - i;
+                println!("Resolver: resolve_local: found \"{name}\" in scope {index}");
+
+                self.interpreter_local_map.insert(parse_tree_id, index);
+                // println!(
+                //     "Resolver: resolve_local: parse_tree_id: {}, name: {}, scope_index: {}",
+                //     parse_tree_id, name, i
+                // );
+                return;
             }
         }
+
+        println!("Resolver: resolve_local: \"{name}\" not found in any scope, must be global");
     }
 
     fn resolve_function(
@@ -97,8 +112,10 @@ impl StmtVisitor<Result<(), String>> for Resolver {
         initializer: &Option<Box<Expr>>,
     ) -> Result<(), String> {
         println!(
-            "Resolver: visit_var_declaration: name: {}, initializer: {:?}",
-            name, initializer
+            "Resolver: visit_var_declaration: name: {}, initializer: {:?}, scopes: {}",
+            name,
+            initializer,
+            self.scopes.len()
         );
 
         self.declare(name.clone());
@@ -271,16 +288,20 @@ impl ExprVisitor<Result<(), String>> for Resolver {
         Ok(())
     }
 
-    fn visit_identifier(&mut self, value: &String) -> Result<(), String> {
+    fn visit_identifier(&mut self, value: &ExprIdentifier) -> Result<(), String> {
         if let Some(scope) = self.scopes.last() {
-            if let Some(defined) = scope.get(value) {
+            if let Some(defined) = scope.get(&value.id) {
                 if !defined {
                     return Err(format!(
-                        "cannot read local variable \"{value}\" in its own initializer."
+                        "cannot read local variable \"{}\" in its own initializer.",
+                        value.id
                     ));
                 }
             }
         }
+
+        // TODO: need to convert to an IdentifierExpr with ParseTreeId
+        self.resolve_local(value.parse_tree_id, &value.id);
 
         Ok(())
     }

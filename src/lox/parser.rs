@@ -1,3 +1,5 @@
+use crate::lox::ExprIdentifier;
+
 use super::{Expr, ExprAssign, ExprVisitor, ParseTreeId, Stmt, StmtVisitor, Token};
 
 pub struct Statement {}
@@ -248,7 +250,7 @@ impl Parser {
             match expr {
                 Expr::Identifier(s) => Ok(Expr::Assign(super::ExprAssign {
                     parse_tree_id: self.get_next_parse_tree_id(),
-                    left: s,
+                    left: s.id,
                     right: Box::new(value),
                 })),
                 _ => Err(ParseError {
@@ -446,10 +448,16 @@ impl Parser {
     }
 
     fn parse_expression_primary(&mut self) -> Result<Expr, ParseError> {
-        match self.previous() {
+        // had to clone the previous token because cannot borrow self mutably inside for get_next_parse_tree_id()
+        let previous_token = self.previous().clone();
+
+        match &previous_token {
             Token::NumberLiteral(n) => Ok(Expr::LiteralNumber(*n)),
             Token::StringLiteral(s) => Ok(Expr::LiteralString(s.clone())),
-            Token::Identifier(s) => Ok(Expr::Identifier(s.clone())),
+            Token::Identifier(s) => Ok(Expr::Identifier(ExprIdentifier {
+                parse_tree_id: self.get_next_parse_tree_id(),
+                id: s.clone(),
+            })),
             Token::False => Ok(Expr::False),
             Token::True => Ok(Expr::True),
             Token::Nil => Ok(Expr::Nil),
@@ -615,8 +623,8 @@ impl ExprVisitor<String> for AstPrinter {
         "nil".to_string()
     }
 
-    fn visit_identifier(&mut self, value: &String) -> String {
-        value.clone()
+    fn visit_identifier(&mut self, value: &ExprIdentifier) -> String {
+        value.id.clone()
     }
 }
 
