@@ -1,4 +1,4 @@
-use super::{Expr, ExprVisitor, Stmt, StmtVisitor, Token};
+use super::{Expr, ExprAssign, ExprVisitor, ParseTreeId, Stmt, StmtVisitor, Token};
 
 pub struct Statement {}
 
@@ -15,11 +15,16 @@ impl ToString for ParseError {
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
+    current_parse_tree_id: ParseTreeId,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
-        Parser { tokens, current: 0 }
+        Parser {
+            tokens,
+            current: 0,
+            current_parse_tree_id: 0,
+        }
     }
 
     pub fn parse(&mut self) -> Result<Vec<Stmt>, ParseError> {
@@ -31,6 +36,13 @@ impl Parser {
         }
 
         Ok(statements)
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    fn get_next_parse_tree_id(&mut self) -> ParseTreeId {
+        let id = self.current_parse_tree_id;
+        self.current_parse_tree_id += 1;
+        id
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -234,7 +246,11 @@ impl Parser {
             let value = self.parse_expression_or()?;
 
             match expr {
-                Expr::Identifier(s) => Ok(Expr::Assign(s, Box::new(value))),
+                Expr::Identifier(s) => Ok(Expr::Assign(super::ExprAssign {
+                    parse_tree_id: self.get_next_parse_tree_id(),
+                    left: s,
+                    right: Box::new(value),
+                })),
                 _ => Err(ParseError {
                     message: "Invalid assignment target.".to_string(),
                 }),
@@ -503,8 +519,8 @@ impl Parser {
 struct AstPrinter {}
 
 impl ExprVisitor<String> for AstPrinter {
-    fn visit_assign(&mut self, left: &String, right: &Box<Expr>) -> String {
-        format!("{{{} = {}}}", left, right.accept(self))
+    fn visit_assign(&mut self, assign: &ExprAssign) -> String {
+        format!("{{{} = {}}}", assign.left, assign.right.accept(self))
     }
 
     fn visit_binary_or(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> String {

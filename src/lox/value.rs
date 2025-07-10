@@ -59,8 +59,6 @@ impl PartialEq for dyn Callable {
 #[cfg(test)]
 mod tests {
 
-    use std::borrow::BorrowMut;
-
     use super::Value;
 
     #[test]

@@ -9,6 +9,7 @@ pub enum Stmt {
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
     While(Box<Expr>, Box<Stmt>),
     FunctionDeclaration(String, Vec<String>, Box<Stmt>), // name, arguments, body
+                                                         // TODO: Add Return
 }
 
 impl Stmt {

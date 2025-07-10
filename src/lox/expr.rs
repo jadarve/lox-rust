@@ -1,8 +1,10 @@
+pub type ParseTreeId = u32;
+
 #[derive(PartialEq, PartialOrd, Debug, Clone)]
 pub enum Expr {
     // Assign
     // TODO: left side should be an Expr once we need lvalues
-    Assign(String, Box<Expr>),
+    Assign(ExprAssign),
 
     // Binary
     BinaryOr(Box<Expr>, Box<Expr>),
@@ -32,12 +34,13 @@ pub enum Expr {
     True,
     Nil,
     Identifier(String),
+    // TODO: Parentheses
 }
 
 impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn ExprVisitor<T>) -> T {
         match self {
-            Expr::Assign(left, right) => visitor.visit_assign(left, right),
+            Expr::Assign(assign) => visitor.visit_assign(&assign),
             Expr::BinaryOr(left, right) => visitor.visit_binary_or(left, right),
             Expr::BinaryAnd(left, right) => visitor.visit_binary_and(left, right),
             Expr::BinaryEqual(left, right) => visitor.visit_binary_equal(left, right),
@@ -66,7 +69,7 @@ impl Expr {
 }
 
 pub trait ExprVisitor<T> {
-    fn visit_assign(&mut self, left: &String, right: &Box<Expr>) -> T;
+    fn visit_assign(&mut self, assign: &ExprAssign) -> T;
     fn visit_binary_or(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
     fn visit_binary_and(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
     fn visit_binary_equal(&mut self, left: &Box<Expr>, right: &Box<Expr>) -> T;
@@ -90,6 +93,13 @@ pub trait ExprVisitor<T> {
     fn visit_nil(&mut self) -> T;
     fn visit_identifier(&mut self, value: &String) -> T;
     fn visit_call(&mut self, callee: &Box<Expr>, arguments: &Vec<Expr>) -> T;
+}
+
+#[derive(PartialEq, PartialOrd, Debug, Clone)]
+pub struct ExprAssign {
+    pub parse_tree_id: ParseTreeId,
+    pub left: String,
+    pub right: Box<Expr>,
 }
 
 #[cfg(test)]

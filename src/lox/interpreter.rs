@@ -1,15 +1,20 @@
 use super::{
-    new_value_box, value, Environment, ExprVisitor, Parser, Scanner, StmtVisitor, Value, ValueBox,
+    new_value_box, Environment, ExprAssign, ExprVisitor, Parser, Resolver, Scanner, StmtVisitor,
+    Value, ValueBox,
 };
+
+use std::collections::HashMap;
 
 pub struct Interpreter {
     environment: Box<dyn Environment>,
+    resolver_map: HashMap<super::ParseTreeId, usize>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
             environment: Box::new(super::EnvironmentImpl::new()),
+            resolver_map: HashMap::new(),
         }
     }
 
@@ -19,6 +24,11 @@ impl Interpreter {
 
         let mut parser = Parser::new(tokens);
         let statements = parser.parse().map_err(|e| e.to_string())?;
+
+        // run the resolver here
+        println!("Resolver: executing statements: {}", statements.len());
+        let mut resolver = Resolver::new();
+        self.resolver_map = resolver.resolve(&statements)?;
 
         match statements.len() {
             1 => statements[0].accept(self),
@@ -148,13 +158,9 @@ impl StmtVisitor<Result<ValueBox, String>> for Interpreter {
 }
 
 impl ExprVisitor<Result<ValueBox, String>> for Interpreter {
-    fn visit_assign(
-        &mut self,
-        left: &String,
-        right: &Box<super::Expr>,
-    ) -> Result<ValueBox, String> {
-        if let Some(left_variable) = self.environment.get_variable(left) {
-            let right_result = right.accept(self)?;
+    fn visit_assign(&mut self, assign: &ExprAssign) -> Result<ValueBox, String> {
+        if let Some(left_variable) = self.environment.get_variable(assign.left.as_str()) {
+            let right_result = assign.right.accept(self)?;
             let right_guard = right_result.read().map_err(|e| e.to_string())?;
 
             let mut left_guard = left_variable.write().map_err(|e| e.to_string())?;
@@ -162,7 +168,7 @@ impl ExprVisitor<Result<ValueBox, String>> for Interpreter {
 
             Ok(left_variable.to_owned())
         } else {
-            return Err(format!("Undefined variable '{}'", left));
+            return Err(format!("Undefined variable '{}'", assign.left));
         }
     }
 

@@ -5,10 +5,12 @@ var a = "global";
     
     fun showA() {
 
+        print "------------------";
         print "start showA";
         print a;
         print b;
         print "end showA";
+        print "------------------";
     }
 
     showA();
