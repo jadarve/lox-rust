@@ -53,18 +53,18 @@ impl Resolver {
     }
 
     fn resolve_local(&mut self, parse_tree_id: ParseTreeId, name: &str) {
-        println!(
-            "Resolver: resolve_local: parse_tree_id: {}, name: {}, scopes: {}",
-            parse_tree_id,
-            name,
-            self.scopes.len()
-        );
+        // println!(
+        //     "Resolver: resolve_local: parse_tree_id: {}, name: {}, scopes: {}",
+        //     parse_tree_id,
+        //     name,
+        //     self.scopes.len()
+        // );
 
         for (i, scope) in self.scopes.iter().enumerate().rev() {
-            println!("scope: {i}: {:?}", scope);
+            // println!("scope: {i}: {:?}", scope);
             if scope.contains_key(name) {
                 let index = self.scopes.len() - 1 - i;
-                println!("Resolver: resolve_local: found \"{name}\" in scope {index}");
+                // println!("Resolver: resolve_local: found \"{name}\" in scope {index}");
 
                 self.interpreter_local_map.insert(parse_tree_id, index);
                 // println!(
@@ -75,7 +75,7 @@ impl Resolver {
             }
         }
 
-        println!("Resolver: resolve_local: \"{name}\" not found in any scope, must be global");
+        // println!("Resolver: resolve_local: \"{name}\" not found in any scope, must be global");
     }
 
     fn resolve_function(
@@ -111,12 +111,12 @@ impl StmtVisitor<Result<(), String>> for Resolver {
         name: &String,
         initializer: &Option<Box<Expr>>,
     ) -> Result<(), String> {
-        println!(
-            "Resolver: visit_var_declaration: name: {}, initializer: {:?}, scopes: {}",
-            name,
-            initializer,
-            self.scopes.len()
-        );
+        // println!(
+        //     "Resolver: visit_var_declaration: name: {}, initializer: {:?}, scopes: {}",
+        //     name,
+        //     initializer,
+        //     self.scopes.len()
+        // );
 
         self.declare(name.clone());
         if let Some(initializer) = initializer {
@@ -171,6 +171,7 @@ impl StmtVisitor<Result<(), String>> for Resolver {
         self.declare(name.clone());
         self.define(name.clone());
 
+        // TODO: Add FuntionType.Funtion enum for when we have classes
         self.resolve_function(arguments, body)
     }
 }

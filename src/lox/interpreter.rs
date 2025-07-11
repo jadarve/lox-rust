@@ -28,9 +28,10 @@ impl Interpreter {
         let statements = parser.parse().map_err(|e| e.to_string())?;
 
         // run the resolver here
-        println!("Resolver: executing statements: {}", statements.len());
         let mut resolver = Resolver::new();
         self.resolver_map = resolver.resolve(&statements)?;
+
+        // println!("Resolver: resolver map: {:?}", self.resolver_map);
 
         match statements.len() {
             1 => statements[0].accept(self),
@@ -40,6 +41,32 @@ impl Interpreter {
                 }
                 Ok(new_value_box(Value::Nil))
             }
+        }
+    }
+
+    fn look_up_variable(
+        &mut self,
+        id: &str,
+        parse_tree_id: &super::ParseTreeId,
+    ) -> Result<ValueBox, String> {
+        // get the distance from the resolver map
+        if let Some(distance) = self.resolver_map.get(parse_tree_id) {
+            self.environment
+                .get_variable_at(id, *distance)
+                .ok_or(format!("Undefined variable '{id}'"))
+        } else {
+            // it's a global variable
+            // println!(
+            //     "Variable '{}' not found in the resolver map. Using global variables.",
+            //     id
+            // );
+
+            // It's ugly short-circuit using get_global_variable, but it should be safe as the
+            // variable name was not found in the resolver map. This saves the whole search in
+            // the environment stack.
+            self.environment
+                .get_global_variable(id)
+                .ok_or(format!("Undefined variable '{id}'"))
         }
     }
 }
@@ -83,20 +110,20 @@ impl StmtVisitor<Result<ValueBox, String>> for Interpreter {
     }
 
     fn visit_block(&mut self, stmts: &Vec<super::Stmt>) -> Result<ValueBox, String> {
-        self.environment.push_variable_stack();
+        self.environment.push_stack();
         for stmt in stmts {
             match stmt.accept(self) {
                 Ok(_) => {}
                 Err(e) => {
                     // ugly, better to have some form of RAII for popping the environment
-                    self.environment.pop_variable_stack();
+                    self.environment.pop_stack();
                     return Err(e);
                 }
             }
         }
 
         // all statements in the block were executed successfully
-        self.environment.pop_variable_stack();
+        self.environment.pop_stack();
         Ok(new_value_box(Value::Nil))
     }
 
@@ -161,7 +188,10 @@ impl StmtVisitor<Result<ValueBox, String>> for Interpreter {
 
 impl ExprVisitor<Result<ValueBox, String>> for Interpreter {
     fn visit_assign(&mut self, assign: &ExprAssign) -> Result<ValueBox, String> {
-        if let Some(left_variable) = self.environment.get_variable(assign.left.as_str()) {
+        if let Some(left_variable) = self
+            .look_up_variable(&assign.left, &assign.parse_tree_id)
+            .ok()
+        {
             let right_result = assign.right.accept(self)?;
             let right_guard = right_result.read().map_err(|e| e.to_string())?;
 
@@ -524,7 +554,7 @@ impl ExprVisitor<Result<ValueBox, String>> for Interpreter {
 
                 // create the environment to call the function
                 // self.environment.branch_push();
-                self.environment.push_variable_stack();
+                self.environment.push_stack();
 
                 // bind the arguments to the new function environment
                 for (i, arg) in evaluated_arguments.iter().enumerate() {
@@ -543,7 +573,7 @@ impl ExprVisitor<Result<ValueBox, String>> for Interpreter {
                 let body_result = body.accept(self);
 
                 // self.environment.branch_pop();
-                self.environment.pop_variable_stack();
+                self.environment.pop_stack();
                 body_result
             }
             _ => Err("Can only call functions and classes".to_string()),
@@ -572,11 +602,13 @@ impl ExprVisitor<Result<ValueBox, String>> for Interpreter {
     }
 
     fn visit_identifier(&mut self, value: &ExprIdentifier) -> Result<ValueBox, String> {
+        self.look_up_variable(&value.id, &value.parse_tree_id)
+
         // FIXME: need to avoid cloning the value
-        match self.environment.get_variable(&value.id) {
-            Some(value) => Ok(value.clone()),
-            None => Err(format!("Undefined variable '{}'", value.id)),
-        }
+        // match self.environment.get_variable(&value.id) {
+        //     Some(value) => Ok(value.clone()),
+        //     None => Err(format!("Undefined variable '{}'", value.id)),
+        // }
 
         // self.environment
         //     .get_variable(value.as_str())

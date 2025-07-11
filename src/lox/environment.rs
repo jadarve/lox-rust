@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, vec};
 
 use super::{new_value_box, Callable, Value, ValueBox};
 
@@ -8,36 +8,33 @@ type ValueStack = Vec<std::collections::HashMap<String, ValueBox>>;
 //       till now, I clone the stored values everytime I access them, which is inneficient
 pub trait Environment: std::fmt::Display + std::fmt::Debug {
     fn get_variable(&self, name: &str) -> Option<ValueBox>;
-    fn set_variable(&mut self, name: &str, value: Value) -> Result<ValueBox, String>;
+    fn get_variable_at(&self, name: &str, unwind_index: usize) -> Option<ValueBox>;
+    fn get_global_variable(&self, name: &str) -> Option<ValueBox>;
+
+    // fn set_variable(&mut self, name: &str, value: Value) -> Result<ValueBox, String>;
     fn define_variable(&mut self, name: &str, value: Value);
 
-    fn push_variable_stack(&mut self);
-    fn pop_variable_stack(&mut self);
-
-    fn branch_push(&mut self);
-    fn branch_pop(&mut self);
+    fn push_stack(&mut self);
+    fn pop_stack(&mut self);
 
     fn define_function(&mut self, name: &str, value: Box<dyn Callable>);
 }
 
 #[derive(Debug)]
 pub struct EnvironmentImpl {
+    // TODO: Not sure why this explicit separation between globals and stack variables is needed.
+    //       I think it might be cleaner to only have the stack with a single element at the beginning,
     global_variables: std::collections::HashMap<String, ValueBox>,
-    // current_stack: ValueStack,
 
     // a stack of environments, used across function calls
-    branch_stack: Vec<ValueStack>,
+    value_stack: ValueStack,
 }
 
 impl EnvironmentImpl {
     pub fn new() -> Self {
-        // TODO create an empty
-        // let branch_stack = vec![vec![std::collections::HashMap::new()]];
-        let branch_stack = vec![vec![]];
-
         Self {
             global_variables: std::collections::HashMap::new(),
-            branch_stack: branch_stack,
+            value_stack: vec![],
         }
     }
 }
@@ -45,101 +42,95 @@ impl EnvironmentImpl {
 impl Environment for EnvironmentImpl {
     fn get_variable(&self, name: &str) -> Option<ValueBox> {
         // search in the current stack, if there is any created
-        if let Some(current_stack) = self.branch_stack.last() {
-            for scope in current_stack.iter().rev() {
-                if let Some(v) = scope.get(name) {
-                    return Some(v.to_owned());
-                }
+        if let Some(current_stack) = self.value_stack.last() {
+            if let Some(v) = current_stack.get(name) {
+                return Some(v.to_owned());
             }
         }
 
         self.global_variables.get(name).map(|v| v.to_owned())
     }
 
-    fn set_variable(&mut self, name: &str, value: Value) -> Result<ValueBox, String> {
-        // if there is a branch stack, try to set the variable value there
-        if let Some(current_stack) = self.branch_stack.last_mut() {
-            for scope in current_stack.iter_mut().rev() {
-                if let Some(v) = scope.get_mut(name) {
-                    let mut guard = v.try_write().map_err(|e| {
-                        format!("Error locking variable \"{name}\" for writing: {e:?}")
-                    })?;
-                    *guard.as_mut() = value;
-                    return Ok(v.to_owned());
-                }
-            }
+    fn get_variable_at(&self, name: &str, unwind_index: usize) -> Option<ValueBox> {
+        // this should not happen. It adds 1 to include the global variables
+        assert!(
+            unwind_index < self.value_stack.len() + 1,
+            "Unwind index out of bounds"
+        );
+
+        let len = self.value_stack.len();
+        if unwind_index == len {
+            // if unwind_index is equal to the length of the stack, it means we want to access the global variables
+            return self.global_variables.get(name).cloned();
         }
 
-        // if the variable is not found in the current stack, try to set it in the global variables
-        if let Some(v) = self.global_variables.get_mut(name) {
-            let mut guard = v.try_write().map_err(|e| {
-                format!("Error locking global variable \"{name}\" for writing: {e:?}")
-            })?;
-            *guard.as_mut() = value;
-            return Ok(v.to_owned());
-        }
-
-        Err(format!("Undefined variable '{}'", name))
+        let stack_at_index = &self.value_stack[len - 1 - unwind_index];
+        stack_at_index.get(name).cloned()
     }
 
+    fn get_global_variable(&self, name: &str) -> Option<ValueBox> {
+        return self.global_variables.get(name).cloned();
+    }
+
+    // fn set_variable(&mut self, name: &str, value: Value) -> Result<ValueBox, String> {
+    //     // if there is a branch stack, try to set the variable value there
+    //     if let Some(current_stack) = self.value_stack.last_mut() {
+    //         if let Some(v) = current_stack.get_mut(name) {
+    //             let mut guard = v
+    //                 .try_write()
+    //                 .map_err(|e| format!("Error locking variable \"{name}\" for writing: {e:?}"))?;
+    //             *guard.as_mut() = value;
+    //             return Ok(v.to_owned());
+    //         }
+    //     }
+
+    //     // if the variable is not found in the current stack, try to set it in the global variables
+    //     if let Some(v) = self.global_variables.get_mut(name) {
+    //         let mut guard = v.try_write().map_err(|e| {
+    //             format!("Error locking global variable \"{name}\" for writing: {e:?}")
+    //         })?;
+    //         *guard.as_mut() = value;
+    //         return Ok(v.to_owned());
+    //     }
+
+    //     Err(format!("Undefined variable '{}'", name))
+    // }
+
     fn define_variable(&mut self, name: &str, value: Value) {
-        if let Some(current_stack) = self.branch_stack.last_mut() {
-            if let Some(scope) = current_stack.last_mut() {
-                scope.insert(name.to_string(), new_value_box(value));
-                return;
-            }
+        if let Some(current_stack) = self.value_stack.last_mut() {
+            current_stack.insert(name.to_string(), new_value_box(value));
+            return;
         }
 
         self.global_variables
             .insert(name.to_string(), new_value_box(value));
-
-        // let current_stack = self.branch_stack.last_mut().unwrap();
-        // match current_stack.last_mut() {
-        //     Some(scope) => {
-        //         scope.insert(name.to_string(), value);
-        //     }
-        //     None => {
-        //         self.global_variables
-        //             .borrow_mut()
-        //             .insert(name.to_string(), value);
-        //     }
-        // }
     }
 
-    fn push_variable_stack(&mut self) {
-        let current_stack = self.branch_stack.last_mut().unwrap();
-        current_stack.push(std::collections::HashMap::new());
+    fn push_stack(&mut self) {
+        self.value_stack.push(std::collections::HashMap::new());
     }
 
-    fn pop_variable_stack(&mut self) {
-        let current_stack = self.branch_stack.last_mut().unwrap();
-        if current_stack.len() > 1 {
-            current_stack.pop();
+    fn pop_stack(&mut self) {
+        self.value_stack.pop();
+    }
+
+    fn define_function(&mut self, name: &str, function: Box<dyn Callable>) {
+        // Same as any other value, functions are stored in the current stack, so they can be shadowed
+        let function_value = new_value_box(Value::Callable(Rc::new(function)));
+
+        // same as defining a variable
+        if let Some(current_stack) = self.value_stack.last_mut() {
+            current_stack.insert(name.to_string(), function_value);
+            return;
         }
-    }
 
-    fn branch_push(&mut self) {
-        self.branch_stack
-            .push(vec![std::collections::HashMap::new()]);
-    }
-
-    fn branch_pop(&mut self) {
-        if self.branch_stack.len() > 1 {
-            self.branch_stack.pop();
-        }
-    }
-
-    fn define_function(&mut self, name: &str, value: Box<dyn Callable>) {
-        self.global_variables.insert(
-            name.to_string(),
-            new_value_box(Value::Callable(Rc::new(value))),
-        );
+        self.global_variables
+            .insert(name.to_string(), function_value);
     }
 }
 
 impl std::fmt::Display for EnvironmentImpl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // write!(f, "EnvironmentImpl")
         write!(f, "EnvironmentImpl")
     }
 }
