@@ -10,6 +10,8 @@ mod stmt;
 mod token;
 mod value;
 
+pub mod vm;
+
 pub use environment::*;
 pub use expr::*;
 // pub use expr2::*;

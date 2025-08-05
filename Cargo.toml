@@ -14,7 +14,11 @@ name = "lox"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+thiserror = { version = "1" }
 
 
 [dev-dependencies]
 rstest = { version = "0.18.2" }
+
+# Only used for tests. The actual Lox implementation uses std::Result
+anyhow = { version = "*" }
