@@ -1,4 +1,4 @@
-use crate::lox::vm::{chunk, disassembler, error, opcodes, value};
+use crate::lox::vm::{chunk, disassembler, error, opcodes, opcodes::OpCode, value};
 
 const DEFAULT_STACK_SIZE: usize = 256;
 
@@ -73,6 +73,7 @@ impl VirtualMachine for VirtualMachineImpl {
                     .stack
                     .iter()
                     .enumerate()
+                    .rev()
                     .map(|(i, v)| format!("  {i:<3}: {v:?}"))
                     .collect::<Vec<_>>()
                     .join("\n");
@@ -96,7 +97,7 @@ impl VirtualMachine for VirtualMachineImpl {
             let (op_code, next_instruction_offset) = opcodes::try_from_with_offset(&byte)?;
 
             match op_code {
-                opcodes::OpCode::Return => {
+                OpCode::Return => {
                     // Handle return operation
                     self.state.instruction_pointer += next_instruction_offset; // Move to the next instruction
 
@@ -105,7 +106,7 @@ impl VirtualMachine for VirtualMachineImpl {
 
                     break; // Exit the loop
                 }
-                opcodes::OpCode::Constant => {
+                OpCode::Constant => {
                     // Handle constant operation
                     let constant_index = chunk.get_byte(self.state.instruction_pointer + 1)?;
 
@@ -121,6 +122,60 @@ impl VirtualMachine for VirtualMachineImpl {
                     // automatically moves the instruction pointer forward when it goes out of scope.
                     self.state.instruction_pointer += next_instruction_offset;
                 }
+                OpCode::Negate => {
+                    // Pop the top value from the stack
+                    let value = self.stack_pop()?;
+
+                    let negated_value = (-value)?;
+                    self.stack_push(negated_value)?;
+
+                    // Move to the next instruction
+                    self.state.instruction_pointer += next_instruction_offset;
+                }
+                OpCode::Add => {
+                    // Pop the top two values from the stack
+                    let right = self.stack_pop()?; // stack underflow
+                    let left = self.stack_pop()?; // stack underflow
+
+                    let result = (left + right)?; // type error
+                    self.stack_push(result)?; // stack overflow should not happen here as we just popped two values
+
+                    // Move to the next instruction
+                    self.state.instruction_pointer += next_instruction_offset;
+                }
+                OpCode::Subtract => {
+                    // Pop the top two values from the stack
+                    let right = self.stack_pop()?;
+                    let left = self.stack_pop()?;
+
+                    let result = (left - right)?;
+                    self.stack_push(result)?;
+
+                    // Move to the next instruction
+                    self.state.instruction_pointer += next_instruction_offset;
+                }
+                OpCode::Multiply => {
+                    // Pop the top two values from the stack
+                    let right = self.stack_pop()?;
+                    let left = self.stack_pop()?;
+
+                    let result = (left * right)?;
+                    self.stack_push(result)?;
+
+                    // Move to the next instruction
+                    self.state.instruction_pointer += next_instruction_offset;
+                }
+                OpCode::Divide => {
+                    // Pop the top two values from the stack
+                    let right = self.stack_pop()?;
+                    let left = self.stack_pop()?;
+
+                    let result = (left / right)?;
+                    self.stack_push(result)?;
+
+                    // Move to the next instruction
+                    self.state.instruction_pointer += next_instruction_offset;
+                }
             }
         }
 
@@ -132,7 +187,9 @@ impl VirtualMachine for VirtualMachineImpl {
 mod tests {
     use super::*;
     // use crate::lox::vm::chunk;
-    use crate::lox::vm::value;
+    use crate::lox::vm::{disassembler::disassemble_chunk, value};
+
+    use anyhow::Result;
 
     #[test]
     fn test_run_valid_chunk() {
@@ -171,5 +228,54 @@ mod tests {
         };
 
         assert!(vm.run(&chunk).is_ok());
+    }
+
+    #[test]
+    fn test_chunk_with_negate() {
+        let mut vm = VirtualMachineImpl::new();
+        vm.state.tracing = true; // Enable tracing for this test
+        let chunk = chunk::Chunk {
+            code: vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x02, 0x01], // OpCode::Constant, OpCode::Negate, OpCode::Return
+            constants: vec![value::Value::Number(42.0), value::Value::Number(3.14)],
+        };
+
+        assert!(vm.run(&chunk).is_ok());
+    }
+
+    #[test]
+    fn test_chunk_arithmetic() -> Result<()> {
+        // -((1.2 + 3.4) / 5.6)
+
+        // CONSTANTS
+        let constants = vec![
+            value::Value::Number(1.2),
+            value::Value::Number(3.4),
+            value::Value::Number(5.6),
+        ];
+
+        let mut vm = VirtualMachineImpl::new();
+        vm.state.tracing = true; // Enable tracing for this test
+        let chunk = chunk::Chunk {
+            code: vec![
+                OpCode::Constant.into(),
+                0x00,
+                OpCode::Constant.into(),
+                0x01,
+                OpCode::Add.into(),
+                OpCode::Constant.into(),
+                0x02,
+                OpCode::Divide.into(),
+                OpCode::Negate.into(),
+                OpCode::Return.into(),
+            ],
+            constants,
+        };
+
+        let disassembled = disassemble_chunk(&chunk)?;
+        println!("{disassembled}");
+
+        vm.run(&chunk)?;
+
+        Ok(())
     }
 }

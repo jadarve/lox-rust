@@ -16,4 +16,7 @@ pub enum RuntimeError {
 
     #[error("Stack overflow: attempted to push to a full stack of size {0}")]
     StackOverflow(usize),
+
+    #[error("Runtime error: {0}")]
+    RuntimeError(String),
 }

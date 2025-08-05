@@ -32,8 +32,7 @@ pub fn dissasemble_instruction(
 
     match op_code {
         opcodes::OpCode::Return => {
-            output
-                .push_str(format!("{:<width$}\n", "RETURN", width = INSTRUCTION_PADDING).as_str());
+            output.push_str(&format_single_instruction("RETURN"));
         }
         opcodes::OpCode::Constant => {
             let constant_index = chunk.get_byte(instruction_pointer + 1)?;
@@ -48,9 +47,28 @@ pub fn dissasemble_instruction(
                 .as_str(),
             );
         }
+        opcodes::OpCode::Negate => {
+            output.push_str(&format_single_instruction("NEGATE"));
+        }
+        opcodes::OpCode::Add => {
+            output.push_str(&format_single_instruction("ADD"));
+        }
+        opcodes::OpCode::Subtract => {
+            output.push_str(&format_single_instruction("SUBTRACT"));
+        }
+        opcodes::OpCode::Multiply => {
+            output.push_str(&format_single_instruction("MULTIPLY"));
+        }
+        opcodes::OpCode::Divide => {
+            output.push_str(&format_single_instruction("DIVIDE"));
+        }
     }
 
     Ok((output, next_instruction_offset))
+}
+
+fn format_single_instruction(name: &str) -> String {
+    format!("{:<width$}\n", name, width = INSTRUCTION_PADDING)
 }
 
 #[cfg(test)]
